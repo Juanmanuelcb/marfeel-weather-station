@@ -1,0 +1,16 @@
+{
+  "name": "device",
+  "version": "1.0.0",
+  "description": "Sensor device emulator — posts generated payloads to the ingest gateway.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@assemblyscript/loader": "^0.28.19",
+    "axios": "^1.8.2"
+  }
+}

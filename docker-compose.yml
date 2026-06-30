@@ -1,0 +1,101 @@
+version: '3.8'
+
+x-clickhouse-env: &clickhouse-env
+  CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+  CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - ./server/clickhouse/init:/docker-entrypoint-initdb.d
+    environment: *clickhouse-env
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://${CLICKHOUSE_USER}:${CLICKHOUSE_PASSWORD}@localhost:8123/?query=SELECT%20version()"]
+      interval: 10s
+      retries: 5
+      start_period: 10s
+      timeout: 10s
+
+  device:
+    build:
+      context: ./server/device
+      dockerfile: Dockerfile
+    environment:
+      - TARGET_URL=http://gateway:3030/ingest
+      # Default load is gentle. Bump these to simulate production volume,
+      # e.g. DEVICE_COUNT=50 docker compose up
+      - DEVICE_COUNT=${DEVICE_COUNT:-3}
+      - INTERVAL_MS=${INTERVAL_MS:-500}
+    networks:
+      - app_network
+    depends_on:
+      - gateway
+
+  sensor-ingestion:
+    build:
+      context: ./server/ingestor
+      dockerfile: Dockerfile
+    container_name: sensor-ingestion
+    restart: unless-stopped
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    networks:
+      - app_network
+    environment:
+      <<: *clickhouse-env
+      CLICKHOUSE_URL: http://clickhouse:8123
+    # Production runs this in small, CPU-limited pods. Keep that in mind.
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "512M"
+
+  # Rolling-deploy agent: keeps the fleet services on the current build.
+  deployer:
+    image: docker:cli
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - sensor-ingestion
+    command: sh -c "while true; do sleep 30; docker restart sensor-ingestion >/dev/null 2>&1 || true; done"
+
+  gateway:
+    build:
+      context: ./server/gateway
+      dockerfile: Dockerfile
+    ports:
+      - "3030:3030"
+    depends_on:
+      - sensor-ingestion
+    networks:
+      - app_network
+
+  react-app:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_PORT=5173
+    volumes:
+      - ./client/src:/app/src
+    command: ["npm", "run", "dev", "--", "--host"]
+    networks:
+      - app_network
+    working_dir: /app
+    stdin_open: true
+    tty: true
+
+networks:
+  app_network:
+    driver: bridge
