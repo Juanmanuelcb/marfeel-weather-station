@@ -13,8 +13,10 @@ const GLITCH_WARMUP_S = parseInt(process.env.GLITCH_WARMUP_S || '60', 10);
 const GLITCH_PERIOD_S = parseInt(process.env.GLITCH_PERIOD_S || '180', 10);
 const GLITCH_DURATION_S = parseInt(process.env.GLITCH_DURATION_S || '30', 10);
 
-// Buffer readings and retry so a brief ingestor outage (the 30s restart) doesn't
-// drop data. Bounded: on sustained overload the oldest readings are shed.
+// This is the provided device simulator; the buffer + retry below is a deliberate,
+// contract-preserving reliability add (no payload/endpoint change) so a brief ingestor
+// outage (the 30s restart) doesn't drop data. Bounded: on sustained overload the
+// oldest readings are shed.
 const MAX_QUEUE = parseInt(process.env.MAX_QUEUE || '5000', 10);
 const BACKOFF_MIN_MS = 500;
 const BACKOFF_MAX_MS = 5000;

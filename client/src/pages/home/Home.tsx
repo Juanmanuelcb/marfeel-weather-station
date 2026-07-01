@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useSnapshot } from '../../snapshot';
 import { FleetTable } from '../../components/fleetTable';
 import { LocationSummary } from '../../components/locationSummary';
@@ -6,13 +6,6 @@ import { LocationSummary } from '../../components/locationSummary';
 export function Home() {
 	const { snapshot, status } = useSnapshot();
 	const [location, setLocation] = useState('');
-	const [nowMs, setNowMs] = useState(() => Date.now());
-
-	// Advance "now" so staleness updates even if a device stops sending.
-	useEffect(() => {
-		const t = setInterval(() => setNowMs(Date.now()), 5000);
-		return () => clearInterval(t);
-	}, []);
 
 	const fleet = useMemo(() => snapshot?.fleet ?? [], [snapshot]);
 	const filtered = useMemo(
@@ -41,6 +34,10 @@ export function Home() {
 	if (!fleet.length) {
 		return <p className="text-gray-500">No devices reporting yet.</p>;
 	}
+
+	// Staleness is measured against the snapshot's own timestamp, so the table has a
+	// single repaint beat (the 5s frame) instead of a second, drifting interval.
+	const nowMs = Date.parse(snapshot.ts);
 
 	return (
 		<div className="space-y-8">

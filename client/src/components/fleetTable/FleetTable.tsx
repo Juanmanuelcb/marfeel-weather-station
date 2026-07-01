@@ -1,6 +1,9 @@
 import { memo } from 'react';
+import { Link } from 'react-router';
 import type { FleetReading } from '../../api';
 import { isStale } from '../../lib/staleness';
+import { useVirtualWindow } from '../../lib/useVirtualWindow';
+import { FlashCell } from '../flashCell';
 
 const STALE_MS = 15000;
 const ANOMALY_FLAG = 0.5;
@@ -10,42 +13,74 @@ type Props = {
 	nowMs: number;
 };
 
-// Memoized and render-all: smooth to several hundred devices, well past the test
-// fleet. For thousands, swap the tbody for a windowed list (e.g. react-window).
+// Virtualized: only the rows in view are in the DOM (plus a spacer above and below), so
+// the fleet view stays responsive at thousands of devices. Fixed layout + tabular-nums
+// keep columns from shifting as live values update; FlashCell flags what changed.
 export const FleetTable = memo(function FleetTable({ rows, nowMs }: Props) {
+	const { containerRef, measureRow, onScroll, start, end, padTop, padBottom } = useVirtualWindow(
+		rows.length,
+	);
+	const visible = rows.slice(start, end);
+
 	return (
-		<table className="w-full text-sm bg-white rounded shadow">
-			<thead>
-				<tr className="text-left border-b">
-					<th className="p-2">Device</th>
-					<th className="p-2">Location</th>
-					<th className="p-2">Temp</th>
-					<th className="p-2">Humidity</th>
-					<th className="p-2">Anomaly</th>
-					<th className="p-2">Last seen</th>
-				</tr>
-			</thead>
-			<tbody>
-				{rows.map(r => {
-					const stale = isStale(r.recorded_at, nowMs, STALE_MS);
-					const anomalous = r.anomaly_prob > ANOMALY_FLAG;
-					return (
-						<tr key={r.device_id} className="border-b">
-							<td className="p-2 font-mono">{r.device_id}</td>
-							<td className="p-2">{r.location_name || r.location}</td>
-							<td className="p-2">{r.temperature.toFixed(1)}</td>
-							<td className="p-2">{r.humidity.toFixed(1)}</td>
-							<td className={`p-2 ${anomalous ? 'text-red-600 font-semibold' : ''}`}>
-								{`${r.anomaly_prob.toFixed(2)}${anomalous ? ' !' : ''}`}
-							</td>
-							<td className="p-2">
-								{r.recorded_at}
-								{stale ? <span className="ml-2 text-xs text-amber-600">stale</span> : null}
-							</td>
+		<div
+			ref={containerRef}
+			onScroll={onScroll}
+			className="max-h-[70vh] overflow-auto rounded shadow bg-white"
+		>
+			<table className="w-full table-fixed text-sm">
+				<thead className="sticky top-0 z-10 bg-white">
+					<tr className="text-left border-b">
+						<th className="p-2 w-44">Device</th>
+						<th className="p-2 w-40">Location</th>
+						<th className="p-2 w-20 text-right">Temp</th>
+						<th className="p-2 w-24 text-right">Humidity</th>
+						<th className="p-2 w-24 text-right">Anomaly</th>
+						<th className="p-2">Last seen</th>
+					</tr>
+				</thead>
+				<tbody>
+					{padTop > 0 && (
+						<tr aria-hidden>
+							<td colSpan={6} className="p-0" style={{ height: padTop }} />
 						</tr>
-					);
-				})}
-			</tbody>
-		</table>
+					)}
+					{visible.map((r, i) => {
+						const stale = isStale(r.recorded_at, nowMs, STALE_MS);
+						const anomalous = r.anomaly_prob > ANOMALY_FLAG;
+						return (
+							<tr key={r.device_id} ref={i === 0 ? measureRow : undefined} className="border-b">
+								<td className="p-2 font-mono truncate">
+									<Link to={`/device/${r.device_id}`} className="text-blue-700 hover:underline">
+										{r.device_id}
+									</Link>
+								</td>
+								<td className="p-2 truncate">{r.location_name || r.location}</td>
+								<td className="p-2 text-right">
+									<FlashCell value={r.temperature} decimals={1} />
+								</td>
+								<td className="p-2 text-right">
+									<FlashCell value={r.humidity} decimals={1} />
+								</td>
+								<td
+									className={`p-2 text-right tabular-nums ${anomalous ? 'text-red-600 font-semibold' : ''}`}
+								>
+									{`${r.anomaly_prob.toFixed(2)}${anomalous ? ' !' : ''}`}
+								</td>
+								<td className="p-2 tabular-nums">
+									{r.recorded_at}
+									{stale ? <span className="ml-2 text-xs text-amber-600">stale</span> : null}
+								</td>
+							</tr>
+						);
+					})}
+					{padBottom > 0 && (
+						<tr aria-hidden>
+							<td colSpan={6} className="p-0" style={{ height: padBottom }} />
+						</tr>
+					)}
+				</tbody>
+			</table>
+		</div>
 	);
 });
