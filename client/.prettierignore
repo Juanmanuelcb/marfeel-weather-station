@@ -1,0 +1,4 @@
+# Build output (Prettier reads .prettierignore from the cwd, so the root one isn't
+# seen when format runs from this package).
+dist
+coverage
