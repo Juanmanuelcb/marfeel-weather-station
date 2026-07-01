@@ -11,12 +11,14 @@ type Props = {
 	className?: string;
 };
 
-const W = 600;
-const H = 160;
-const ML = 48;
-const MR = 46;
-const MT = 10;
-const MB = 22;
+// A small viewBox (close to the on-screen render width of a small-multiple card) keeps
+// the SVG-unit label text legible; a wide viewBox would scale 12px labels down to ~5px.
+const W = 320;
+const H = 180;
+const ML = 38;
+const MR = 48;
+const MT = 12;
+const MB = 26;
 
 const hhmmss = (t: string) => t.slice(11, 19);
 const timeMs = (t: string) => Date.parse(`${t.replace(' ', 'T')}Z`);
@@ -47,7 +49,12 @@ export function Sparkline({ points, label, unit = '', decimals = 1, domain, clas
 	const fmt = (n: number) => `${n.toFixed(decimals)}${unit}`;
 
 	return (
-		<svg viewBox={`0 0 ${W} ${H}`} className={className} role="img" aria-label={label}>
+		<svg
+			viewBox={`0 0 ${W} ${H}`}
+			className={`h-auto ${className ?? ''}`}
+			role="img"
+			aria-label={label}
+		>
 			<line x1={ML} y1={MT} x2={ML} y2={MT + plotH} stroke="#e5e7eb" />
 			<line x1={ML} y1={MT + plotH} x2={ML + plotW} y2={MT + plotH} stroke="#e5e7eb" />
 

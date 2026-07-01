@@ -31,11 +31,11 @@ export const FleetTable = memo(function FleetTable({ rows, nowMs }: Props) {
 			<table className="w-full table-fixed text-sm">
 				<thead className="sticky top-0 z-10 bg-white">
 					<tr className="text-left border-b">
-						<th className="p-2 w-44">Device</th>
-						<th className="p-2 w-40">Location</th>
-						<th className="p-2 w-20 text-right">Temp</th>
-						<th className="p-2 w-24 text-right">Humidity</th>
-						<th className="p-2 w-24 text-right">Anomaly</th>
+						<th className="p-2 w-28 sm:w-44">Device</th>
+						<th className="p-2 w-40 hidden sm:table-cell">Location</th>
+						<th className="p-2 w-16 sm:w-20 text-right">Temp</th>
+						<th className="p-2 w-24 text-right hidden sm:table-cell">Humidity</th>
+						<th className="p-2 w-20 sm:w-24 text-right">Anomaly</th>
 						<th className="p-2">Last seen</th>
 					</tr>
 				</thead>
@@ -50,24 +50,26 @@ export const FleetTable = memo(function FleetTable({ rows, nowMs }: Props) {
 						const anomalous = r.anomaly_prob > ANOMALY_FLAG;
 						return (
 							<tr key={r.device_id} ref={i === 0 ? measureRow : undefined} className="border-b">
-								<td className="p-2 font-mono truncate">
+								<td className="p-3 sm:p-2 font-mono truncate">
 									<Link to={`/device/${r.device_id}`} className="text-blue-700 hover:underline">
 										{r.device_id}
 									</Link>
 								</td>
-								<td className="p-2 truncate">{r.location_name || r.location}</td>
-								<td className="p-2 text-right">
+								<td className="p-3 sm:p-2 truncate hidden sm:table-cell">
+									{r.location_name || r.location}
+								</td>
+								<td className="p-3 sm:p-2 text-right">
 									<FlashCell value={r.temperature} decimals={1} />
 								</td>
-								<td className="p-2 text-right">
+								<td className="p-3 sm:p-2 text-right hidden sm:table-cell">
 									<FlashCell value={r.humidity} decimals={1} />
 								</td>
 								<td
-									className={`p-2 text-right tabular-nums ${anomalous ? 'text-red-600 font-semibold' : ''}`}
+									className={`p-3 sm:p-2 text-right tabular-nums ${anomalous ? 'text-red-600 font-semibold' : ''}`}
 								>
 									{`${r.anomaly_prob.toFixed(2)}${anomalous ? ' !' : ''}`}
 								</td>
-								<td className="p-2 tabular-nums">
+								<td className="p-3 sm:p-2 tabular-nums whitespace-nowrap">
 									{r.recorded_at}
 									{stale ? <span className="ml-2 text-xs text-amber-600">stale</span> : null}
 								</td>

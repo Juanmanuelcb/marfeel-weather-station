@@ -41,7 +41,7 @@ export function Home() {
 
 	return (
 		<div className="space-y-8">
-			<div className="flex items-center justify-between">
+			<div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
 				<h1 className="text-xl font-bold">Fleet overview</h1>
 				<span className="text-xs text-gray-500">
 					{status === 'open' ? 'live' : 'reconnecting'} · {fleet.length} devices · updated{' '}
@@ -55,11 +55,11 @@ export function Home() {
 			</section>
 
 			<section>
-				<div className="flex items-center gap-3 mb-2">
+				<div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3 mb-2">
 					<h2 className="text-lg font-semibold">Devices</h2>
 					<select
 						aria-label="Filter by location"
-						className="text-sm border rounded px-2 py-1 bg-white"
+						className="w-full sm:w-auto min-h-11 sm:min-h-0 text-sm border rounded px-2 py-1 bg-white"
 						value={location}
 						onChange={e => setLocation(e.target.value)}
 					>

@@ -89,15 +89,17 @@ export function Device() {
 	return (
 		<div className="space-y-6">
 			<div>
-				<h1 className="text-xl font-bold font-mono">{deviceId}</h1>
-				<p className="text-sm text-gray-600 flex items-center gap-2">
+				<h1 className="text-xl font-bold font-mono break-all">{deviceId}</h1>
+				<p className="mt-1 text-sm text-gray-600 flex flex-wrap items-center gap-x-2 gap-y-1">
 					<span className="inline-flex items-center gap-1">
 						<span
 							className={`w-2 h-2 rounded-full ${live ? 'bg-green-500 animate-pulse' : 'bg-amber-500'}`}
 						/>
 						{live ? 'live' : 'reconnecting'}
 					</span>
-					· {latest.location} · {readings.length} readings · latest {latest.recorded_at}
+					<span>· {latest.location}</span>
+					<span>· {readings.length} readings</span>
+					<span>· latest {latest.recorded_at}</span>
 				</p>
 			</div>
 
@@ -131,26 +133,28 @@ export function Device() {
 
 			<section>
 				<h2 className="text-lg font-semibold mb-2">Recent readings</h2>
-				<table className="w-full table-fixed text-sm bg-white rounded shadow">
-					<thead>
-						<tr className="text-left border-b">
-							<th className="p-2">Recorded</th>
-							<th className="p-2 w-24 text-right">Temp</th>
-							<th className="p-2 w-28 text-right">Humidity</th>
-							<th className="p-2 w-28 text-right">Anomaly</th>
-						</tr>
-					</thead>
-					<tbody>
-						{readings.slice(0, 20).map(r => (
-							<tr key={`${r.recorded_at}-${r.temperature}-${r.humidity}`} className="border-b">
-								<td className="p-2 tabular-nums">{r.recorded_at}</td>
-								<td className="p-2 text-right tabular-nums">{r.temperature.toFixed(1)}</td>
-								<td className="p-2 text-right tabular-nums">{r.humidity.toFixed(1)}</td>
-								<td className="p-2 text-right tabular-nums">{r.anomaly_prob.toFixed(2)}</td>
+				<div className="overflow-x-auto rounded shadow bg-white">
+					<table className="w-full min-w-[480px] table-fixed text-sm">
+						<thead>
+							<tr className="text-left border-b">
+								<th className="p-2">Recorded</th>
+								<th className="p-2 w-24 text-right">Temp</th>
+								<th className="p-2 w-28 text-right">Humidity</th>
+								<th className="p-2 w-28 text-right">Anomaly</th>
 							</tr>
-						))}
-					</tbody>
-				</table>
+						</thead>
+						<tbody>
+							{readings.slice(0, 20).map(r => (
+								<tr key={`${r.recorded_at}-${r.temperature}-${r.humidity}`} className="border-b">
+									<td className="p-2 tabular-nums">{r.recorded_at}</td>
+									<td className="p-2 text-right tabular-nums">{r.temperature.toFixed(1)}</td>
+									<td className="p-2 text-right tabular-nums">{r.humidity.toFixed(1)}</td>
+									<td className="p-2 text-right tabular-nums">{r.anomaly_prob.toFixed(2)}</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				</div>
 			</section>
 		</div>
 	);

@@ -27,8 +27,8 @@ export const LocationSummary = memo(function LocationSummary({ locations }: Prop
 						<th className="p-2">Location</th>
 						<th className="p-2 w-24 text-right">Devices</th>
 						<th className="p-2 w-24 text-right">Avg temp</th>
-						<th className="p-2 w-28 text-right">Avg humidity</th>
-						<th className="p-2 w-28 text-right">Avg anomaly</th>
+						<th className="p-2 w-28 text-right hidden sm:table-cell">Avg humidity</th>
+						<th className="p-2 w-28 text-right hidden sm:table-cell">Avg anomaly</th>
 						<th className="p-2 w-28 text-right">Anomalous</th>
 					</tr>
 				</thead>
@@ -40,21 +40,21 @@ export const LocationSummary = memo(function LocationSummary({ locations }: Prop
 					)}
 					{visible.map((l, i) => (
 						<tr key={l.location} ref={i === 0 ? measureRow : undefined} className="border-b">
-							<td className="p-2 truncate">{l.location_name || l.location}</td>
-							<td className="p-2 text-right">
+							<td className="p-3 sm:p-2 truncate">{l.location_name || l.location}</td>
+							<td className="p-3 sm:p-2 text-right">
 								<FlashCell value={l.devices} decimals={0} />
 							</td>
-							<td className="p-2 text-right">
+							<td className="p-3 sm:p-2 text-right">
 								<FlashCell value={l.avg_temperature} decimals={1} />
 							</td>
-							<td className="p-2 text-right">
+							<td className="p-3 sm:p-2 text-right hidden sm:table-cell">
 								<FlashCell value={l.avg_humidity} decimals={1} />
 							</td>
-							<td className="p-2 text-right">
+							<td className="p-3 sm:p-2 text-right hidden sm:table-cell">
 								<FlashCell value={l.avg_anomaly} decimals={2} />
 							</td>
 							<td
-								className={`p-2 text-right ${l.anomalous_devices > 0 ? 'text-red-600 font-semibold' : ''}`}
+								className={`p-3 sm:p-2 text-right ${l.anomalous_devices > 0 ? 'text-red-600 font-semibold' : ''}`}
 							>
 								<FlashCell value={l.anomalous_devices} decimals={0} />
 							</td>
