@@ -10,7 +10,7 @@ export function Sidebar() {
 			<h2 className="text-lg font-bold mb-4">Devices ({devices.length})</h2>
 			<nav className="flex-1 overflow-y-auto">
 				<ul>
-					{devices.map((d) => (
+					{devices.map(d => (
 						<li key={d.device_id}>
 							<Link
 								to={`/device/${d.device_id}`}

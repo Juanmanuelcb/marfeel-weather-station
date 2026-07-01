@@ -16,7 +16,7 @@ export function Home() {
 
 	const fleet = useMemo(() => snapshot?.fleet ?? [], [snapshot]);
 	const filtered = useMemo(
-		() => (location ? fleet.filter((r) => r.location === location) : fleet),
+		() => (location ? fleet.filter(r => r.location === location) : fleet),
 		[fleet, location],
 	);
 
@@ -47,7 +47,8 @@ export function Home() {
 			<div className="flex items-center justify-between">
 				<h1 className="text-xl font-bold">Fleet overview</h1>
 				<span className="text-xs text-gray-500">
-					{status === 'open' ? 'live' : 'reconnecting'} · {fleet.length} devices · updated {snapshot.ts.slice(11, 19)}
+					{status === 'open' ? 'live' : 'reconnecting'} · {fleet.length} devices · updated{' '}
+					{snapshot.ts.slice(11, 19)}
 				</span>
 			</div>
 
@@ -62,22 +63,26 @@ export function Home() {
 					<select
 						className="text-sm border rounded px-2 py-1 bg-white"
 						value={location}
-						onChange={(e) => setLocation(e.target.value)}
+						onChange={e => setLocation(e.target.value)}
 					>
 						<option value="">All locations</option>
-						{snapshot.locations.map((l) => (
-							<option key={l.location} value={l.location}>{l.location_name || l.location}</option>
+						{snapshot.locations.map(l => (
+							<option key={l.location} value={l.location}>
+								{l.location_name || l.location}
+							</option>
 						))}
 					</select>
 				</div>
-				{filtered.length
-					? <FleetTable rows={filtered} nowMs={nowMs} />
-					: (
-						<p className="text-gray-500">
-							No devices in this location.{' '}
-							<button className="underline" onClick={() => setLocation('')}>Clear filter</button>
-						</p>
-					)}
+				{filtered.length ? (
+					<FleetTable rows={filtered} nowMs={nowMs} />
+				) : (
+					<p className="text-gray-500">
+						No devices in this location.{' '}
+						<button className="underline" onClick={() => setLocation('')}>
+							Clear filter
+						</button>
+					</p>
+				)}
 			</section>
 		</div>
 	);

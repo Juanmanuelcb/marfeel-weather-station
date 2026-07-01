@@ -16,13 +16,22 @@ export function Device() {
 		let active = true;
 		setStatus('loading');
 		fetchDeviceHistory(deviceId)
-			.then((rows) => { if (active) { setReadings(rows); setStatus('ready'); } })
-			.catch(() => { if (active) setStatus('error'); });
-		return () => { active = false; };
+			.then(rows => {
+				if (active) {
+					setReadings(rows);
+					setStatus('ready');
+				}
+			})
+			.catch(() => {
+				if (active) setStatus('error');
+			});
+		return () => {
+			active = false;
+		};
 	}, [deviceId]);
 
 	// History is newest-first; the chart reads oldest-to-newest.
-	const temps = useMemo(() => readings.map((r) => r.temperature).reverse(), [readings]);
+	const temps = useMemo(() => readings.map(r => r.temperature).reverse(), [readings]);
 	const latest = readings[0];
 
 	if (status === 'loading') {
@@ -48,7 +57,11 @@ export function Device() {
 
 			<section className="bg-white rounded shadow p-4">
 				<h2 className="text-sm font-semibold mb-2 text-gray-700">Temperature</h2>
-				<Sparkline values={temps} label="Temperature over time" className="w-full h-32 text-blue-600" />
+				<Sparkline
+					values={temps}
+					label="Temperature over time"
+					className="w-full h-32 text-blue-600"
+				/>
 			</section>
 
 			<section>

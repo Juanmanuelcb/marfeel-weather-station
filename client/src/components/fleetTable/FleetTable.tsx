@@ -26,7 +26,7 @@ export const FleetTable = memo(function FleetTable({ rows, nowMs }: Props) {
 				</tr>
 			</thead>
 			<tbody>
-				{rows.map((r) => {
+				{rows.map(r => {
 					const stale = isStale(r.recorded_at, nowMs, STALE_MS);
 					const anomalous = r.anomaly_prob > ANOMALY_FLAG;
 					return (

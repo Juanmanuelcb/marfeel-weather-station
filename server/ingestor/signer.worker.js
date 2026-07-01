@@ -14,6 +14,6 @@ function computeSignature(payload) {
 	return h;
 }
 
-parentPort.on('message', (payload) => {
+parentPort.on('message', payload => {
 	parentPort.postMessage({ signature: computeSignature(payload) });
 });

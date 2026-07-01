@@ -9,7 +9,9 @@ class MockEventSource {
 	onmessage: ((event: MessageEvent) => void) | null = null;
 	onopen: (() => void) | null = null;
 	onerror: (() => void) | null = null;
-	constructor(url: string) { this.url = url; }
+	constructor(url: string) {
+		this.url = url;
+	}
 	close() {}
 }
 

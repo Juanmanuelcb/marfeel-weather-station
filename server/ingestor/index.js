@@ -98,20 +98,31 @@ function validate(body) {
 }
 
 function calculateMetrics(temperature, humidity, pressure, windSpeed) {
-	const alpha = ((17.27 * temperature) / (237.7 + temperature)) + Math.log(humidity / 100);
+	const alpha = (17.27 * temperature) / (237.7 + temperature) + Math.log(humidity / 100);
 	const dewPoint = (237.7 * alpha) / (17.27 - alpha);
 	const airDensity = pressure / (287.05 * (temperature + 273.15));
-	const windChill = windSpeed > 4.8
-		? 13.12 + 0.6215 * temperature - 11.37 * Math.pow(windSpeed, 0.16) + 0.3965 * temperature * Math.pow(windSpeed, 0.16)
-		: temperature;
+	const windChill =
+		windSpeed > 4.8
+			? 13.12 +
+				0.6215 * temperature -
+				11.37 * Math.pow(windSpeed, 0.16) +
+				0.3965 * temperature * Math.pow(windSpeed, 0.16)
+			: temperature;
 
 	// NOAA heat-index formula: T is temperature in Fahrenheit, R is relative humidity %.
-	const T = temperature * 9 / 5 + 32;
+	const T = (temperature * 9) / 5 + 32;
 	const R = humidity;
-	const hiF = -42.379 + 2.04901523 * T + 10.14333127 * R - 0.22475541 * T * R
-		- 6.83783e-3 * T * T - 5.481717e-2 * R * R + 1.22874e-3 * T * T * R
-		+ 8.5282e-4 * T * R * R - 1.99e-6 * T * T * R * R;
-	const heatIndex = (hiF - 32) * 5 / 9;
+	const hiF =
+		-42.379 +
+		2.04901523 * T +
+		10.14333127 * R -
+		0.22475541 * T * R -
+		6.83783e-3 * T * T -
+		5.481717e-2 * R * R +
+		1.22874e-3 * T * T * R +
+		8.5282e-4 * T * R * R -
+		1.99e-6 * T * T * R * R;
+	const heatIndex = ((hiF - 32) * 5) / 9;
 
 	return { dewPoint, airDensity, windChill, heatIndex };
 }
@@ -130,7 +141,10 @@ function toRecordedAt(timestamp) {
 // across an await, so concurrent requests overwrote each other's fields.
 function buildRow(payload, signature) {
 	const { dewPoint, airDensity, windChill, heatIndex } = calculateMetrics(
-		payload.temperature, payload.humidity, payload.pressure, payload.wind_speed,
+		payload.temperature,
+		payload.humidity,
+		payload.pressure,
+		payload.wind_speed,
 	);
 	return {
 		device_id: payload.device_id,
@@ -164,30 +178,39 @@ function createIngestor({ client, sign }) {
 	const subscribers = new Set();
 	let snapshot = null;
 
-	const metrics = { accepted: 0, shed: 0, rejected: 0, batchesDropped: 0, rowsDropped: 0, signatures: 0 };
+	const metrics = {
+		accepted: 0,
+		shed: 0,
+		rejected: 0,
+		batchesDropped: 0,
+		rowsDropped: 0,
+		signatures: 0,
+	};
 
 	function pump() {
 		if (shuttingDown || inFlight || pending.length === 0) return;
 		const payload = pending.shift();
 		inFlight = payload;
-		sign(payload).then((signature) => {
-			inFlight = null;
-			metrics.signatures++;
-			try {
-				batch.push(buildRow(payload, signature));
-				if (batch.length >= BATCH_MAX_ROWS) flush();
-			} catch (err) {
-				// A single un-buildable reading must not wedge the pipeline.
-				console.error(`[ingestor] dropped reading for ${payload.device_id}: ${err.message}`);
-			}
-			pump();
-		}).catch((err) => {
-			// Prod sign never rejects (a dead worker exits the process); this keeps
-			// the loop alive for an injected signer that can, and in tests.
-			inFlight = null;
-			console.error(`[ingestor] signing failed for ${payload.device_id}: ${err.message}`);
-			pump();
-		});
+		sign(payload)
+			.then(signature => {
+				inFlight = null;
+				metrics.signatures++;
+				try {
+					batch.push(buildRow(payload, signature));
+					if (batch.length >= BATCH_MAX_ROWS) flush();
+				} catch (err) {
+					// A single un-buildable reading must not wedge the pipeline.
+					console.error(`[ingestor] dropped reading for ${payload.device_id}: ${err.message}`);
+				}
+				pump();
+			})
+			.catch(err => {
+				// Prod sign never rejects (a dead worker exits the process); this keeps
+				// the loop alive for an injected signer that can, and in tests.
+				inFlight = null;
+				console.error(`[ingestor] signing failed for ${payload.device_id}: ${err.message}`);
+				pump();
+			});
 	}
 
 	async function flush() {
@@ -203,7 +226,9 @@ function createIngestor({ client, sign }) {
 				// One retry then shed: a wedged writer must not block ingestion or grow memory.
 				metrics.batchesDropped++;
 				metrics.rowsDropped += rows.length;
-				console.error(`[ingestor] dropped batch of ${rows.length} rows after retry: ${second.message}`);
+				console.error(
+					`[ingestor] dropped batch of ${rows.length} rows after retry: ${second.message}`,
+				);
 			}
 		} finally {
 			flushing = false;
@@ -211,7 +236,7 @@ function createIngestor({ client, sign }) {
 	}
 
 	const flushTimer = setInterval(flush, FLUSH_INTERVAL_MS);
-	const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+	const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 	async function query(sql, query_params) {
 		const rs = await client.query({ query: sql, query_params, format: 'JSONEachRow' });
@@ -278,34 +303,42 @@ function createIngestor({ client, sign }) {
 
 	app.get('/metrics', (req, res) => {
 		res.type('text/plain; version=0.0.4');
-		res.send([
-			'# TYPE readings_accepted_total counter',
-			`readings_accepted_total ${metrics.accepted}`,
-			'# TYPE readings_shed_total counter',
-			`readings_shed_total ${metrics.shed}`,
-			'# TYPE readings_rejected_total counter',
-			`readings_rejected_total ${metrics.rejected}`,
-			'# TYPE signatures_total counter',
-			`signatures_total ${metrics.signatures}`,
-			'# TYPE batches_dropped_total counter',
-			`batches_dropped_total ${metrics.batchesDropped}`,
-			'# TYPE rows_dropped_total counter',
-			`rows_dropped_total ${metrics.rowsDropped}`,
-			'# TYPE ingestor_queue_depth gauge',
-			`ingestor_queue_depth ${pending.length}`,
-			'# TYPE ingestor_batch_depth gauge',
-			`ingestor_batch_depth ${batch.length}`,
-			'# TYPE ingestor_sse_subscribers gauge',
-			`ingestor_sse_subscribers ${subscribers.size}`,
-			'',
-		].join('\n'));
+		res.send(
+			[
+				'# TYPE readings_accepted_total counter',
+				`readings_accepted_total ${metrics.accepted}`,
+				'# TYPE readings_shed_total counter',
+				`readings_shed_total ${metrics.shed}`,
+				'# TYPE readings_rejected_total counter',
+				`readings_rejected_total ${metrics.rejected}`,
+				'# TYPE signatures_total counter',
+				`signatures_total ${metrics.signatures}`,
+				'# TYPE batches_dropped_total counter',
+				`batches_dropped_total ${metrics.batchesDropped}`,
+				'# TYPE rows_dropped_total counter',
+				`rows_dropped_total ${metrics.rowsDropped}`,
+				'# TYPE ingestor_queue_depth gauge',
+				`ingestor_queue_depth ${pending.length}`,
+				'# TYPE ingestor_batch_depth gauge',
+				`ingestor_batch_depth ${batch.length}`,
+				'# TYPE ingestor_sse_subscribers gauge',
+				`ingestor_sse_subscribers ${subscribers.size}`,
+				'',
+			].join('\n'),
+		);
 	});
 
 	app.post('/ingest', (req, res) => {
 		if (shuttingDown) return res.status(503).json({ status: 'shutting_down' });
 		const payload = validate(req.body);
-		if (!payload) { metrics.rejected++; return res.status(400).json({ status: 'invalid' }); }
-		if (pending.length >= PENDING_CAP) { metrics.shed++; return res.status(503).json({ status: 'overloaded' }); }
+		if (!payload) {
+			metrics.rejected++;
+			return res.status(400).json({ status: 'invalid' });
+		}
+		if (pending.length >= PENDING_CAP) {
+			metrics.shed++;
+			return res.status(503).json({ status: 'overloaded' });
+		}
 		pending.push(payload);
 		pump();
 		metrics.accepted++;
@@ -327,7 +360,7 @@ function createIngestor({ client, sign }) {
 		res.writeHead(200, {
 			'Content-Type': 'text/event-stream',
 			'Cache-Control': 'no-cache',
-			'Connection': 'keep-alive',
+			Connection: 'keep-alive',
 			'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
 		});
 		subscribers.add(res);
@@ -355,7 +388,9 @@ function createIngestor({ client, sign }) {
 	app.get('/api/device/:id', (req, res) => {
 		const since = intParam(req.query.since, DEVICE_HISTORY_SINCE_S, 10, 86400);
 		const limit = intParam(req.query.limit, DEVICE_HISTORY_LIMIT, 1, DEVICE_HISTORY_LIMIT_MAX);
-		readJson(res, `
+		readJson(
+			res,
+			`
 			SELECT device_id, temperature, humidity, pressure, wind_speed, heat_index,
 				air_density, wind_chill, dew_point, location, recorded_at, anomaly_prob
 			FROM (
@@ -366,10 +401,23 @@ function createIngestor({ client, sign }) {
 				LIMIT 1 BY signature
 			)
 			ORDER BY recorded_at DESC
-			LIMIT {limit:UInt32}`, { id: req.params.id, since, limit });
+			LIMIT {limit:UInt32}`,
+			{ id: req.params.id, since, limit },
+		);
 	});
 
-	return { app, drain, flush, poll, stats: () => ({ pending: pending.length, batch: batch.length, subscribers: subscribers.size, shuttingDown }) };
+	return {
+		app,
+		drain,
+		flush,
+		poll,
+		stats: () => ({
+			pending: pending.length,
+			batch: batch.length,
+			subscribers: subscribers.size,
+			shuttingDown,
+		}),
+	};
 }
 
 function startServer() {
@@ -395,23 +443,28 @@ function startServer() {
 
 	// One signature is ever outstanding (pump signs serially), so a single
 	// resolver is enough to correlate the worker's reply.
-	const sign = (payload) => new Promise((resolve) => {
-		pendingResolve = resolve;
-		worker.postMessage(payload);
-	});
+	const sign = payload =>
+		new Promise(resolve => {
+			pendingResolve = resolve;
+			worker.postMessage(payload);
+		});
 
 	const { app, drain, flush } = createIngestor({ client, sign });
 	const server = app.listen(PORT, () => console.log(`Ingestor listening on ${PORT}`));
 
 	let shuttingDown = false;
 
-	worker.on('error', async (err) => {
+	worker.on('error', async err => {
 		console.error(`[ingestor] signer worker failed: ${err.message}`);
-		try { await flush(); } catch { /* exiting anyway */ }
+		try {
+			await flush();
+		} catch {
+			/* exiting anyway */
+		}
 		process.exit(1);
 	});
 
-	worker.on('exit', (code) => {
+	worker.on('exit', code => {
 		if (shuttingDown) return;
 		console.error(`[ingestor] signer worker exited (${code}); exiting for restart`);
 		process.exit(1);
@@ -442,4 +495,12 @@ function startServer() {
 
 if (require.main === module) startServer();
 
-module.exports = { validate, intParam, calculateMetrics, detectAnomaly, toRecordedAt, buildRow, createIngestor };
+module.exports = {
+	validate,
+	intParam,
+	calculateMetrics,
+	detectAnomaly,
+	toRecordedAt,
+	buildRow,
+	createIngestor,
+};

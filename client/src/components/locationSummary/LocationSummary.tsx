@@ -19,7 +19,7 @@ export const LocationSummary = memo(function LocationSummary({ locations }: Prop
 				</tr>
 			</thead>
 			<tbody>
-				{locations.map((l) => (
+				{locations.map(l => (
 					<tr key={l.location} className="border-b">
 						<td className="p-2">{l.location_name || l.location}</td>
 						<td className="p-2">{l.devices}</td>

@@ -18,13 +18,22 @@ export function SnapshotProvider({ children }: { children: ReactNode }) {
 	const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
 	const [status, setStatus] = useState<Status>('connecting');
 
-	useEffect(() => openSnapshotStream({
-		onSnapshot: (next) => { setSnapshot(next); setStatus('open'); },
-		onOpen: () => setStatus('open'),
-		onError: () => setStatus('error'),
-	}), []);
+	useEffect(
+		() =>
+			openSnapshotStream({
+				onSnapshot: next => {
+					setSnapshot(next);
+					setStatus('open');
+				},
+				onOpen: () => setStatus('open'),
+				onError: () => setStatus('error'),
+			}),
+		[],
+	);
 
-	return <SnapshotContext.Provider value={{ snapshot, status }}>{children}</SnapshotContext.Provider>;
+	return (
+		<SnapshotContext.Provider value={{ snapshot, status }}>{children}</SnapshotContext.Provider>
+	);
 }
 
 // The context and its hook belong in one file; extra files just to satisfy Fast

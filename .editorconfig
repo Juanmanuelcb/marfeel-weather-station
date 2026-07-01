@@ -1,0 +1,21 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Source is tab-indented (ingestor + client).
+[*.{js,ts,tsx,jsx}]
+indent_style = tab
+
+# Config and data files are 2-space.
+[*.{json,yml,yaml,md}]
+indent_style = space
+indent_size = 2
+
+# The device emulator is 2-space throughout.
+[server/device/**]
+indent_style = space
+indent_size = 2

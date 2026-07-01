@@ -1,0 +1,18 @@
+node_modules
+dist
+build
+coverage
+*.wasm
+*-lock.json
+package-lock.json
+images
+
+# Markdown left alone: README is the challenge brief, and the others are hand-formatted.
+*.md
+
+# Sensitive to reformatting (the deployer folded-scalar command).
+docker-compose.yml
+
+# Gitignored working notes.
+.notes
+INSIGHTS.md

@@ -2,7 +2,15 @@ const test = require('node:test');
 const assert = require('node:assert');
 const http = require('node:http');
 
-const { validate, intParam, calculateMetrics, detectAnomaly, toRecordedAt, buildRow, createIngestor } = require('./index');
+const {
+	validate,
+	intParam,
+	calculateMetrics,
+	detectAnomaly,
+	toRecordedAt,
+	buildRow,
+	createIngestor,
+} = require('./index');
 
 const sample = {
 	device_id: 1234,
@@ -70,9 +78,20 @@ test('buildRow returns an independent object per reading', () => {
 test('buildRow maps all 14 schema columns', () => {
 	const row = buildRow(validate(sample), 'sig');
 	assert.deepStrictEqual(Object.keys(row).sort(), [
-		'air_density', 'anomaly_prob', 'attestation', 'device_id', 'dew_point',
-		'heat_index', 'humidity', 'location', 'pressure', 'recorded_at',
-		'signature', 'temperature', 'wind_chill', 'wind_speed',
+		'air_density',
+		'anomaly_prob',
+		'attestation',
+		'device_id',
+		'dew_point',
+		'heat_index',
+		'humidity',
+		'location',
+		'pressure',
+		'recorded_at',
+		'signature',
+		'temperature',
+		'wind_chill',
+		'wind_speed',
 	]);
 });
 
@@ -106,8 +125,17 @@ function post(port, path, body) {
 	return new Promise((resolve, reject) => {
 		const data = Buffer.from(JSON.stringify(body));
 		const req = http.request(
-			{ host: '127.0.0.1', port, path, method: 'POST', headers: { 'content-type': 'application/json', 'content-length': data.length } },
-			(res) => { res.resume(); res.on('end', () => resolve(res.statusCode)); },
+			{
+				host: '127.0.0.1',
+				port,
+				path,
+				method: 'POST',
+				headers: { 'content-type': 'application/json', 'content-length': data.length },
+			},
+			res => {
+				res.resume();
+				res.on('end', () => resolve(res.statusCode));
+			},
 		);
 		req.on('error', reject);
 		req.end(data);
@@ -116,9 +144,11 @@ function post(port, path, body) {
 
 function get(port, path) {
 	return new Promise((resolve, reject) => {
-		const req = http.get({ host: '127.0.0.1', port, path }, (res) => {
+		const req = http.get({ host: '127.0.0.1', port, path }, res => {
 			let body = '';
-			res.on('data', (c) => { body += c; });
+			res.on('data', c => {
+				body += c;
+			});
 			res.on('end', () => resolve({ status: res.statusCode, body }));
 		});
 		req.on('error', reject);
@@ -127,22 +157,28 @@ function get(port, path) {
 
 async function waitFor(cond, timeoutMs = 1000) {
 	const deadline = Date.now() + timeoutMs;
-	while (!cond() && Date.now() < deadline) await new Promise((r) => setTimeout(r, 5));
+	while (!cond() && Date.now() < deadline) await new Promise(r => setTimeout(r, 5));
 	if (!cond()) throw new Error('waitFor timed out');
 }
 
 test('POST /ingest sheds with 503 once the queue is at capacity', async () => {
 	let release;
-	const gate = new Promise((r) => { release = r; });
+	const gate = new Promise(r => {
+		release = r;
+	});
 	const sign = () => gate.then(() => 'sig'); // hang so nothing drains
-	const client = { insert: async () => {}, close: async () => {}, query: async () => ({ json: async () => [] }) };
+	const client = {
+		insert: async () => {},
+		close: async () => {},
+		query: async () => ({ json: async () => [] }),
+	};
 	const { app, drain } = createIngestor({ client, sign });
 	const server = app.listen(0);
 	const port = server.address().port;
 	try {
 		const codes = [];
 		for (let i = 0; i < 105; i++) codes.push(await post(port, '/ingest', sample));
-		assert.ok(codes.filter((c) => c === 202).length >= 100, 'accepts up to capacity');
+		assert.ok(codes.filter(c => c === 202).length >= 100, 'accepts up to capacity');
 		assert.ok(codes.includes(503), 'sheds once full');
 	} finally {
 		release();
@@ -153,13 +189,20 @@ test('POST /ingest sheds with 503 once the queue is at capacity', async () => {
 
 test('drain flushes the built batch before returning', async () => {
 	const inserted = [];
-	const client = { insert: async ({ values }) => { inserted.push(...values); }, close: async () => {}, query: async () => ({ json: async () => [] }) };
+	const client = {
+		insert: async ({ values }) => {
+			inserted.push(...values);
+		},
+		close: async () => {},
+		query: async () => ({ json: async () => [] }),
+	};
 	const sign = async () => 'sig';
 	const { app, drain, stats } = createIngestor({ client, sign });
 	const server = app.listen(0);
 	const port = server.address().port;
 	try {
-		for (let i = 0; i < 5; i++) assert.strictEqual(await post(port, '/ingest', { ...sample, device_id: i }), 202);
+		for (let i = 0; i < 5; i++)
+			assert.strictEqual(await post(port, '/ingest', { ...sample, device_id: i }), 202);
 		await waitFor(() => stats().batch === 5);
 		const dropped = await drain();
 		assert.strictEqual(dropped, 0);
@@ -172,7 +215,11 @@ test('drain flushes the built batch before returning', async () => {
 
 test('GET /api/stream sends a snapshot frame on connect', async () => {
 	const rows = [{ device_id: 'device_1' }];
-	const client = { insert: async () => {}, close: async () => {}, query: async () => ({ json: async () => rows }) };
+	const client = {
+		insert: async () => {},
+		close: async () => {},
+		query: async () => ({ json: async () => rows }),
+	};
 	const sign = async () => 'sig';
 	const { app, drain, poll, stats } = createIngestor({ client, sign });
 	await poll();
@@ -180,8 +227,11 @@ test('GET /api/stream sends a snapshot frame on connect', async () => {
 	const port = server.address().port;
 	try {
 		const frame = await new Promise((resolve, reject) => {
-			const req = http.get({ host: '127.0.0.1', port, path: '/api/stream' }, (res) => {
-				res.on('data', (chunk) => { resolve(chunk.toString()); req.destroy(); });
+			const req = http.get({ host: '127.0.0.1', port, path: '/api/stream' }, res => {
+				res.on('data', chunk => {
+					resolve(chunk.toString());
+					req.destroy();
+				});
 			});
 			req.on('error', reject);
 		});
@@ -195,7 +245,11 @@ test('GET /api/stream sends a snapshot frame on connect', async () => {
 });
 
 test('GET /metrics reports accept and reject counters', async () => {
-	const client = { insert: async () => {}, close: async () => {}, query: async () => ({ json: async () => [] }) };
+	const client = {
+		insert: async () => {},
+		close: async () => {},
+		query: async () => ({ json: async () => [] }),
+	};
 	const sign = async () => 'sig';
 	const { app, drain } = createIngestor({ client, sign });
 	const server = app.listen(0);
