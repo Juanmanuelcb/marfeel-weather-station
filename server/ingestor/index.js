@@ -26,8 +26,45 @@ const ANOMALY_THRESHOLD = 0.5;
 const DEVICE_HISTORY_SINCE_S = 3600;
 const DEVICE_HISTORY_LIMIT = 500;
 const DEVICE_HISTORY_LIMIT_MAX = 2000;
+// One shared poller drives the live stream, so DB load is independent of viewers.
+const POLL_INTERVAL_MS = 5000;
+const SSE_HEARTBEAT_MS = 20000;
+const SSE_MAX_BUFFER = 1_000_000;
 
 const EXPECTED_TEMP = 20;
+
+// Reused by the HTTP routes and the live poller.
+const FLEET_SQL = `
+	SELECT r.device_id AS device_id, r.temperature AS temperature, r.humidity AS humidity,
+		r.pressure AS pressure, r.wind_speed AS wind_speed, r.heat_index AS heat_index,
+		r.air_density AS air_density, r.wind_chill AS wind_chill, r.dew_point AS dew_point,
+		r.anomaly_prob AS anomaly_prob, r.recorded_at AS recorded_at, r.location AS location,
+		c.name AS location_name, c.latitude AS latitude, c.longitude AS longitude
+	FROM (
+		SELECT * FROM readings
+		WHERE recorded_at >= now() - INTERVAL {window:UInt32} SECOND
+			AND ({location:String} = '' OR location = {location:String})
+		ORDER BY recorded_at DESC
+		LIMIT 1 BY device_id
+	) AS r
+	LEFT JOIN cities AS c ON r.location = c.location
+	ORDER BY r.device_id`;
+
+const LOCATIONS_SQL = `
+	SELECT r.location AS location, c.name AS location_name, count() AS devices,
+		round(avg(r.temperature), 2) AS avg_temperature,
+		round(avg(r.humidity), 2) AS avg_humidity,
+		round(avg(r.anomaly_prob), 4) AS avg_anomaly,
+		countIf(r.anomaly_prob > {tau:Float32}) AS anomalous_devices
+	FROM (
+		SELECT * FROM readings
+		WHERE recorded_at >= now() - INTERVAL {window:UInt32} SECOND
+		ORDER BY recorded_at DESC
+		LIMIT 1 BY device_id
+	) AS r
+	LEFT JOIN cities AS c ON r.location = c.location
+	GROUP BY r.location, c.name
+	ORDER BY r.location`;
 
 function toFinite(value) {
 	const n = Number(value);
@@ -123,6 +160,9 @@ function createIngestor({ client, sign }) {
 	let flushing = false;
 	let shuttingDown = false;
 
+	const subscribers = new Set();
+	let snapshot = null;
+
 	function pump() {
 		if (shuttingDown || inFlight || pending.length === 0) return;
 		const payload = pending.shift();
@@ -167,9 +207,52 @@ function createIngestor({ client, sign }) {
 	const flushTimer = setInterval(flush, FLUSH_INTERVAL_MS);
 	const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+	async function query(sql, query_params) {
+		const rs = await client.query({ query: sql, query_params, format: 'JSONEachRow' });
+		return rs.json();
+	}
+
+	// Drop a subscriber that can't keep up rather than buffer it unbounded on a
+	// 512MB pod. A dead socket lands here or on the 'error' handler in the route.
+	function send(res, frame) {
+		if (res.writableEnded || res.writableLength > SSE_MAX_BUFFER) {
+			res.end();
+			subscribers.delete(res);
+			return;
+		}
+		res.write(frame);
+	}
+
+	// One poll per tick, fanned out to every subscriber, so the DB load does not
+	// grow with viewer count. The client filters the full fleet by location itself.
+	async function poll() {
+		try {
+			const [fleet, locations] = await Promise.all([
+				query(FLEET_SQL, { window: FLEET_WINDOW_S, location: '' }),
+				query(LOCATIONS_SQL, { window: FLEET_WINDOW_S, tau: ANOMALY_THRESHOLD }),
+			]);
+			snapshot = { ts: new Date().toISOString(), fleet, locations };
+			const frame = `data: ${JSON.stringify(snapshot)}\n\n`;
+			for (const res of subscribers) send(res, frame);
+		} catch (err) {
+			// Keep the last good snapshot; a poll blip must not drop viewers.
+			console.error(`[ingestor] snapshot poll failed: ${err.message}`);
+		}
+	}
+
+	const pollTimer = setInterval(poll, POLL_INTERVAL_MS);
+	const heartbeatTimer = setInterval(() => {
+		for (const res of subscribers) send(res, ': ping\n\n');
+	}, SSE_HEARTBEAT_MS);
+	poll();
+
 	async function drain() {
 		shuttingDown = true;
 		clearInterval(flushTimer);
+		clearInterval(pollTimer);
+		clearInterval(heartbeatTimer);
+		for (const res of subscribers) res.end();
+		subscribers.clear();
 		const deadline = Date.now() + SHUTDOWN_DEADLINE_MS;
 		while (inFlight && Date.now() < deadline) await sleep(10);
 		// Let any timer-triggered flush finish first; clearInterval does not stop
@@ -197,11 +280,10 @@ function createIngestor({ client, sign }) {
 		res.status(202).json({ status: 'accepted' });
 	});
 
-	async function readJson(res, query, query_params) {
+	async function readJson(res, sql, query_params) {
 		res.header('Access-Control-Allow-Origin', '*');
 		try {
-			const rs = await client.query({ query, query_params, format: 'JSONEachRow' });
-			res.json(await rs.json());
+			res.json(await query(sql, query_params));
 		} catch (err) {
 			// A read failure must not take down the shared ingestion process.
 			console.error(`[ingestor] read failed: ${err.message}`);
@@ -209,47 +291,31 @@ function createIngestor({ client, sign }) {
 		}
 	}
 
-	// Latest reading per device in the window. LIMIT 1 BY device_id also collapses
-	// exact re-inserts. An empty location param means the whole fleet.
+	app.get('/api/stream', (req, res) => {
+		res.writeHead(200, {
+			'Content-Type': 'text/event-stream',
+			'Cache-Control': 'no-cache',
+			'Connection': 'keep-alive',
+			'Access-Control-Allow-Origin': '*',
+		});
+		subscribers.add(res);
+		// New subscribers get the current snapshot now, not after a full poll.
+		if (snapshot) send(res, `data: ${JSON.stringify(snapshot)}\n\n`);
+		req.on('close', () => subscribers.delete(res));
+		// A half-open socket surfaces here, not on 'close'. Without this an unhandled
+		// stream error would take down the shared ingestion process.
+		res.on('error', () => subscribers.delete(res));
+	});
+
 	app.get('/api/fleet', (req, res) => {
 		const window = intParam(req.query.window, FLEET_WINDOW_S, 10, 3600);
 		const location = String(req.query.location ?? '');
-		readJson(res, `
-			SELECT r.device_id AS device_id, r.temperature AS temperature, r.humidity AS humidity,
-				r.pressure AS pressure, r.wind_speed AS wind_speed, r.heat_index AS heat_index,
-				r.air_density AS air_density, r.wind_chill AS wind_chill, r.dew_point AS dew_point,
-				r.anomaly_prob AS anomaly_prob, r.recorded_at AS recorded_at, r.location AS location,
-				c.name AS location_name, c.latitude AS latitude, c.longitude AS longitude
-			FROM (
-				SELECT * FROM readings
-				WHERE recorded_at >= now() - INTERVAL {window:UInt32} SECOND
-					AND ({location:String} = '' OR location = {location:String})
-				ORDER BY recorded_at DESC
-				LIMIT 1 BY device_id
-			) AS r
-			LEFT JOIN cities AS c ON r.location = c.location
-			ORDER BY r.device_id`, { window, location });
+		readJson(res, FLEET_SQL, { window, location });
 	});
 
-	// Per-location rollup over the latest reading per device, including the anomaly
-	// overview the spike never surfaced.
 	app.get('/api/locations', (req, res) => {
 		const window = intParam(req.query.window, FLEET_WINDOW_S, 10, 3600);
-		readJson(res, `
-			SELECT r.location AS location, c.name AS location_name, count() AS devices,
-				round(avg(r.temperature), 2) AS avg_temperature,
-				round(avg(r.humidity), 2) AS avg_humidity,
-				round(avg(r.anomaly_prob), 4) AS avg_anomaly,
-				countIf(r.anomaly_prob > {tau:Float32}) AS anomalous_devices
-			FROM (
-				SELECT * FROM readings
-				WHERE recorded_at >= now() - INTERVAL {window:UInt32} SECOND
-				ORDER BY recorded_at DESC
-				LIMIT 1 BY device_id
-			) AS r
-			LEFT JOIN cities AS c ON r.location = c.location
-			GROUP BY r.location, c.name
-			ORDER BY r.location`, { window, tau: ANOMALY_THRESHOLD });
+		readJson(res, LOCATIONS_SQL, { window, tau: ANOMALY_THRESHOLD });
 	});
 
 	// Bounded per-device history for the detail chart, deduped by signature so
@@ -271,7 +337,7 @@ function createIngestor({ client, sign }) {
 			LIMIT {limit:UInt32}`, { id: req.params.id, since, limit });
 	});
 
-	return { app, drain, flush, stats: () => ({ pending: pending.length, batch: batch.length, shuttingDown }) };
+	return { app, drain, flush, poll, stats: () => ({ pending: pending.length, batch: batch.length, subscribers: subscribers.size, shuttingDown }) };
 }
 
 function startServer() {

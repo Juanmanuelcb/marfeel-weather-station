@@ -124,7 +124,7 @@ test('POST /ingest sheds with 503 once the queue is at capacity', async () => {
 	let release;
 	const gate = new Promise((r) => { release = r; });
 	const sign = () => gate.then(() => 'sig'); // hang so nothing drains
-	const client = { insert: async () => {}, close: async () => {} };
+	const client = { insert: async () => {}, close: async () => {}, query: async () => ({ json: async () => [] }) };
 	const { app, drain } = createIngestor({ client, sign });
 	const server = app.listen(0);
 	const port = server.address().port;
@@ -142,7 +142,7 @@ test('POST /ingest sheds with 503 once the queue is at capacity', async () => {
 
 test('drain flushes the built batch before returning', async () => {
 	const inserted = [];
-	const client = { insert: async ({ values }) => { inserted.push(...values); }, close: async () => {} };
+	const client = { insert: async ({ values }) => { inserted.push(...values); }, close: async () => {}, query: async () => ({ json: async () => [] }) };
 	const sign = async () => 'sig';
 	const { app, drain, stats } = createIngestor({ client, sign });
 	const server = app.listen(0);
@@ -155,6 +155,30 @@ test('drain flushes the built batch before returning', async () => {
 		assert.strictEqual(inserted.length, 5);
 	} finally {
 		await drain().catch(() => {}); // clears the flush interval even if an assert above threw
+		server.close();
+	}
+});
+
+test('GET /api/stream sends a snapshot frame on connect', async () => {
+	const rows = [{ device_id: 'device_1' }];
+	const client = { insert: async () => {}, close: async () => {}, query: async () => ({ json: async () => rows }) };
+	const sign = async () => 'sig';
+	const { app, drain, poll, stats } = createIngestor({ client, sign });
+	await poll();
+	const server = app.listen(0);
+	const port = server.address().port;
+	try {
+		const frame = await new Promise((resolve, reject) => {
+			const req = http.get({ host: '127.0.0.1', port, path: '/api/stream' }, (res) => {
+				res.on('data', (chunk) => { resolve(chunk.toString()); req.destroy(); });
+			});
+			req.on('error', reject);
+		});
+		assert.match(frame, /^data: /);
+		assert.ok(frame.includes('"device_id":"device_1"'));
+		await waitFor(() => stats().subscribers === 0); // removed on disconnect
+	} finally {
+		await drain().catch(() => {});
 		server.close();
 	}
 });
