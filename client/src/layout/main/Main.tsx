@@ -1,7 +1,7 @@
 import { Outlet } from 'react-router';
 import { Sidebar, TopBar } from '../../components';
 
-export const Main = () => {
+export function Main() {
 	return (
 		<div className="flex h-screen w-screen">
 			<div className="w-64 h-full">
@@ -16,4 +16,4 @@ export const Main = () => {
 			</div>
 		</div>
 	);
-};
+}

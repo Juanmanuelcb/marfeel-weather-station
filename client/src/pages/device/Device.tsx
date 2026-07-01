@@ -82,14 +82,20 @@ export function Device() {
 	}
 	if (!latest) return <p className="text-gray-500">No recent readings for {deviceId}.</p>;
 
+	// A background poll can fail after the first load. Show that instead of a green
+	// "live" dot pulsing over data that has quietly stopped updating.
+	const live = status === 'ready';
+
 	return (
 		<div className="space-y-6">
 			<div>
 				<h1 className="text-xl font-bold font-mono">{deviceId}</h1>
 				<p className="text-sm text-gray-600 flex items-center gap-2">
 					<span className="inline-flex items-center gap-1">
-						<span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-						live
+						<span
+							className={`w-2 h-2 rounded-full ${live ? 'bg-green-500 animate-pulse' : 'bg-amber-500'}`}
+						/>
+						{live ? 'live' : 'reconnecting'}
 					</span>
 					· {latest.location} · {readings.length} readings · latest {latest.recorded_at}
 				</p>

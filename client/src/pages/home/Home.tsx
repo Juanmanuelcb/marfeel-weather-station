@@ -58,6 +58,7 @@ export function Home() {
 				<div className="flex items-center gap-3 mb-2">
 					<h2 className="text-lg font-semibold">Devices</h2>
 					<select
+						aria-label="Filter by location"
 						className="text-sm border rounded px-2 py-1 bg-white"
 						value={location}
 						onChange={e => setLocation(e.target.value)}

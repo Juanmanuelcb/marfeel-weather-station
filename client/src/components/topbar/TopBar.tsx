@@ -1,14 +1,13 @@
 import { Link } from 'react-router';
-import styles from './TopBar.module.css';
 
-export const TopBar = () => {
+export function TopBar() {
 	return (
-		<header className={styles.header}>
-			<h1 className={styles.title}>
+		<header className="sticky top-0 z-10 p-4 bg-white shadow-sm">
+			<h1 className="text-xl font-bold">
 				<Link to="/" className="text-inherit no-underline">
 					Weather Station
 				</Link>
 			</h1>
 		</header>
 	);
-};
+}

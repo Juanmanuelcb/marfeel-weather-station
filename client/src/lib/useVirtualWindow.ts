@@ -30,7 +30,11 @@ export function useVirtualWindow(total: number, overscan = 6) {
 		setScrollTop(e.currentTarget.scrollTop);
 	}, []);
 
-	const start = Math.max(0, Math.floor(scrollTop / rowH) - overscan);
+	// Clamp to the current row count: after a filter shrinks the list, the retained
+	// scrollTop can point past the new end and render an empty window for one frame,
+	// until the browser clamps scroll and fires onScroll.
+	const maxStart = Math.max(0, total - 1);
+	const start = Math.min(maxStart, Math.max(0, Math.floor(scrollTop / rowH) - overscan));
 	const end = Math.min(total, start + Math.ceil(viewportH / rowH) + overscan * 2);
 
 	return {

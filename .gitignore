@@ -37,7 +37,6 @@ __pycache__/
 # Distribution / packaging
 *.egg
 *.egg-info/
-dist/
 build/
 
 # Installer logs
