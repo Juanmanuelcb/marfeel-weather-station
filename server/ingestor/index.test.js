@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const http = require('node:http');
 
-const { validate, calculateMetrics, detectAnomaly, toRecordedAt, buildRow, createIngestor } = require('./index');
+const { validate, intParam, calculateMetrics, detectAnomaly, toRecordedAt, buildRow, createIngestor } = require('./index');
 
 const sample = {
 	device_id: 1234,
@@ -79,6 +79,15 @@ test('buildRow maps all 14 schema columns', () => {
 test('toRecordedAt formats a unix timestamp as a ClickHouse DateTime', () => {
 	assert.strictEqual(toRecordedAt(0), '1970-01-01 00:00:00');
 	assert.strictEqual(toRecordedAt(1700000000), '2023-11-14 22:13:20');
+});
+
+test('intParam parses, clamps, and falls back', () => {
+	assert.strictEqual(intParam(undefined, 300, 10, 3600), 300);
+	assert.strictEqual(intParam('abc', 300, 10, 3600), 300);
+	assert.strictEqual(intParam('60', 300, 10, 3600), 60);
+	assert.strictEqual(intParam('99999', 300, 10, 3600), 3600);
+	assert.strictEqual(intParam('1', 300, 10, 3600), 10);
+	assert.strictEqual(intParam('60.9', 300, 10, 3600), 60);
 });
 
 test('detectAnomaly clamps to [0, 1]', () => {

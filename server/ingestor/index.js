@@ -19,11 +19,25 @@ const SHUTDOWN_DEADLINE_MS = 9000;
 // 6-digit-year string CH can't parse, and one bad row fails the whole batch.
 const MAX_TIMESTAMP = 4294967295;
 
+// Read API. The sort key is recorded_at only, so every query needs a time bound
+// or it full-scans. A device silent longer than the fleet window drops out.
+const FLEET_WINDOW_S = 300;
+const ANOMALY_THRESHOLD = 0.5;
+const DEVICE_HISTORY_SINCE_S = 3600;
+const DEVICE_HISTORY_LIMIT = 500;
+const DEVICE_HISTORY_LIMIT_MAX = 2000;
+
 const EXPECTED_TEMP = 20;
 
 function toFinite(value) {
 	const n = Number(value);
 	return Number.isFinite(n) ? n : 0;
+}
+
+function intParam(raw, fallback, min, max) {
+	const n = Number(raw);
+	if (!Number.isFinite(n)) return fallback;
+	return Math.min(max, Math.max(min, Math.trunc(n)));
 }
 
 // Hot-path guard: reject only what the writer can't survive (a timestamp outside
@@ -69,6 +83,8 @@ function detectAnomaly(temperature) {
 }
 
 function toRecordedAt(timestamp) {
+	// Stored as a UTC wall-clock string. The read endpoints compare against now(),
+	// which is only consistent while the ClickHouse server runs in UTC (image default).
 	return new Date(timestamp * 1000).toISOString().slice(0, 19).replace('T', ' ');
 }
 
@@ -181,20 +197,78 @@ function createIngestor({ client, sign }) {
 		res.status(202).json({ status: 'accepted' });
 	});
 
-	app.get('/api/:deviceId', async (req, res) => {
+	async function readJson(res, query, query_params) {
 		res.header('Access-Control-Allow-Origin', '*');
 		try {
-			const rs = await client.query({
-				query: 'SELECT * FROM readings WHERE device_id = {d:String} ORDER BY recorded_at DESC LIMIT 1000',
-				query_params: { d: req.params.deviceId },
-				format: 'JSONEachRow',
-			});
+			const rs = await client.query({ query, query_params, format: 'JSONEachRow' });
 			res.json(await rs.json());
 		} catch (err) {
 			// A read failure must not take down the shared ingestion process.
-			console.error(`[ingestor] read failed for ${req.params.deviceId}: ${err.message}`);
+			console.error(`[ingestor] read failed: ${err.message}`);
 			res.status(500).json({ status: 'error' });
 		}
+	}
+
+	// Latest reading per device in the window. LIMIT 1 BY device_id also collapses
+	// exact re-inserts. An empty location param means the whole fleet.
+	app.get('/api/fleet', (req, res) => {
+		const window = intParam(req.query.window, FLEET_WINDOW_S, 10, 3600);
+		const location = String(req.query.location ?? '');
+		readJson(res, `
+			SELECT r.device_id AS device_id, r.temperature AS temperature, r.humidity AS humidity,
+				r.pressure AS pressure, r.wind_speed AS wind_speed, r.heat_index AS heat_index,
+				r.air_density AS air_density, r.wind_chill AS wind_chill, r.dew_point AS dew_point,
+				r.anomaly_prob AS anomaly_prob, r.recorded_at AS recorded_at, r.location AS location,
+				c.name AS location_name, c.latitude AS latitude, c.longitude AS longitude
+			FROM (
+				SELECT * FROM readings
+				WHERE recorded_at >= now() - INTERVAL {window:UInt32} SECOND
+					AND ({location:String} = '' OR location = {location:String})
+				ORDER BY recorded_at DESC
+				LIMIT 1 BY device_id
+			) AS r
+			LEFT JOIN cities AS c ON r.location = c.location
+			ORDER BY r.device_id`, { window, location });
+	});
+
+	// Per-location rollup over the latest reading per device, including the anomaly
+	// overview the spike never surfaced.
+	app.get('/api/locations', (req, res) => {
+		const window = intParam(req.query.window, FLEET_WINDOW_S, 10, 3600);
+		readJson(res, `
+			SELECT r.location AS location, c.name AS location_name, count() AS devices,
+				round(avg(r.temperature), 2) AS avg_temperature,
+				round(avg(r.humidity), 2) AS avg_humidity,
+				round(avg(r.anomaly_prob), 4) AS avg_anomaly,
+				countIf(r.anomaly_prob > {tau:Float32}) AS anomalous_devices
+			FROM (
+				SELECT * FROM readings
+				WHERE recorded_at >= now() - INTERVAL {window:UInt32} SECOND
+				ORDER BY recorded_at DESC
+				LIMIT 1 BY device_id
+			) AS r
+			LEFT JOIN cities AS c ON r.location = c.location
+			GROUP BY r.location, c.name
+			ORDER BY r.location`, { window, tau: ANOMALY_THRESHOLD });
+	});
+
+	// Bounded per-device history for the detail chart, deduped by signature so
+	// at-least-once re-inserts don't show as duplicate points.
+	app.get('/api/device/:id', (req, res) => {
+		const since = intParam(req.query.since, DEVICE_HISTORY_SINCE_S, 10, 86400);
+		const limit = intParam(req.query.limit, DEVICE_HISTORY_LIMIT, 1, DEVICE_HISTORY_LIMIT_MAX);
+		readJson(res, `
+			SELECT device_id, temperature, humidity, pressure, wind_speed, heat_index,
+				air_density, wind_chill, dew_point, location, recorded_at, anomaly_prob
+			FROM (
+				SELECT * FROM readings
+				WHERE device_id = {id:String}
+					AND recorded_at >= now() - INTERVAL {since:UInt32} SECOND
+				ORDER BY recorded_at DESC
+				LIMIT 1 BY signature
+			)
+			ORDER BY recorded_at DESC
+			LIMIT {limit:UInt32}`, { id: req.params.id, since, limit });
 	});
 
 	return { app, drain, flush, stats: () => ({ pending: pending.length, batch: batch.length, shuttingDown }) };
@@ -270,4 +344,4 @@ function startServer() {
 
 if (require.main === module) startServer();
 
-module.exports = { validate, calculateMetrics, detectAnomaly, toRecordedAt, buildRow, createIngestor };
+module.exports = { validate, intParam, calculateMetrics, detectAnomaly, toRecordedAt, buildRow, createIngestor };
