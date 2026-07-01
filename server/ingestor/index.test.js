@@ -1,7 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert');
+const http = require('node:http');
 
-const { validate, calculateMetrics, detectAnomaly, toRecordedAt, buildRow } = require('./index');
+const { validate, calculateMetrics, detectAnomaly, toRecordedAt, buildRow, createIngestor } = require('./index');
 
 const sample = {
 	device_id: 1234,
@@ -37,7 +38,10 @@ test('validate rejects an unparseable timestamp', () => {
 	assert.strictEqual(validate(null), null);
 });
 
-test('validate rejects out-of-range timestamps', () => {
+test('validate rejects timestamps outside the ClickHouse DateTime range', () => {
+	assert.ok(validate({ ...sample, timestamp: 1782903338 }));
+	assert.strictEqual(validate({ ...sample, timestamp: 8e12 }), null); // the glitch value that poisoned batches
+	assert.strictEqual(validate({ ...sample, timestamp: 5e9 }), null); // past 2106
 	assert.strictEqual(validate({ ...sample, timestamp: 1e20 }), null);
 	assert.strictEqual(validate({ ...sample, timestamp: 0 }), null);
 	assert.strictEqual(validate({ ...sample, timestamp: -1 }), null);
@@ -87,4 +91,61 @@ test('detectAnomaly clamps to [0, 1]', () => {
 test('calculateMetrics returns finite derived values', () => {
 	const m = calculateMetrics(21.5, 60, 101325, 5);
 	for (const v of Object.values(m)) assert.ok(Number.isFinite(v));
+});
+
+function post(port, path, body) {
+	return new Promise((resolve, reject) => {
+		const data = Buffer.from(JSON.stringify(body));
+		const req = http.request(
+			{ host: '127.0.0.1', port, path, method: 'POST', headers: { 'content-type': 'application/json', 'content-length': data.length } },
+			(res) => { res.resume(); res.on('end', () => resolve(res.statusCode)); },
+		);
+		req.on('error', reject);
+		req.end(data);
+	});
+}
+
+async function waitFor(cond, timeoutMs = 1000) {
+	const deadline = Date.now() + timeoutMs;
+	while (!cond() && Date.now() < deadline) await new Promise((r) => setTimeout(r, 5));
+	if (!cond()) throw new Error('waitFor timed out');
+}
+
+test('POST /ingest sheds with 503 once the queue is at capacity', async () => {
+	let release;
+	const gate = new Promise((r) => { release = r; });
+	const sign = () => gate.then(() => 'sig'); // hang so nothing drains
+	const client = { insert: async () => {}, close: async () => {} };
+	const { app, drain } = createIngestor({ client, sign });
+	const server = app.listen(0);
+	const port = server.address().port;
+	try {
+		const codes = [];
+		for (let i = 0; i < 105; i++) codes.push(await post(port, '/ingest', sample));
+		assert.ok(codes.filter((c) => c === 202).length >= 100, 'accepts up to capacity');
+		assert.ok(codes.includes(503), 'sheds once full');
+	} finally {
+		release();
+		await drain();
+		server.close();
+	}
+});
+
+test('drain flushes the built batch before returning', async () => {
+	const inserted = [];
+	const client = { insert: async ({ values }) => { inserted.push(...values); }, close: async () => {} };
+	const sign = async () => 'sig';
+	const { app, drain, stats } = createIngestor({ client, sign });
+	const server = app.listen(0);
+	const port = server.address().port;
+	try {
+		for (let i = 0; i < 5; i++) assert.strictEqual(await post(port, '/ingest', { ...sample, device_id: i }), 202);
+		await waitFor(() => stats().batch === 5);
+		const dropped = await drain();
+		assert.strictEqual(dropped, 0);
+		assert.strictEqual(inserted.length, 5);
+	} finally {
+		await drain().catch(() => {}); // clears the flush interval even if an assert above threw
+		server.close();
+	}
 });
