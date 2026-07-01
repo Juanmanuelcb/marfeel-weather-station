@@ -114,6 +114,17 @@ function post(port, path, body) {
 	});
 }
 
+function get(port, path) {
+	return new Promise((resolve, reject) => {
+		const req = http.get({ host: '127.0.0.1', port, path }, (res) => {
+			let body = '';
+			res.on('data', (c) => { body += c; });
+			res.on('end', () => resolve({ status: res.statusCode, body }));
+		});
+		req.on('error', reject);
+	});
+}
+
 async function waitFor(cond, timeoutMs = 1000) {
 	const deadline = Date.now() + timeoutMs;
 	while (!cond() && Date.now() < deadline) await new Promise((r) => setTimeout(r, 5));
@@ -177,6 +188,25 @@ test('GET /api/stream sends a snapshot frame on connect', async () => {
 		assert.match(frame, /^data: /);
 		assert.ok(frame.includes('"device_id":"device_1"'));
 		await waitFor(() => stats().subscribers === 0); // removed on disconnect
+	} finally {
+		await drain().catch(() => {});
+		server.close();
+	}
+});
+
+test('GET /metrics reports accept and reject counters', async () => {
+	const client = { insert: async () => {}, close: async () => {}, query: async () => ({ json: async () => [] }) };
+	const sign = async () => 'sig';
+	const { app, drain } = createIngestor({ client, sign });
+	const server = app.listen(0);
+	const port = server.address().port;
+	try {
+		for (let i = 0; i < 3; i++) assert.strictEqual(await post(port, '/ingest', sample), 202);
+		assert.strictEqual(await post(port, '/ingest', { device_id: 'x', timestamp: 'bad' }), 400);
+		const { status, body } = await get(port, '/metrics');
+		assert.strictEqual(status, 200);
+		assert.match(body, /readings_accepted_total 3/);
+		assert.match(body, /readings_rejected_total 1/);
 	} finally {
 		await drain().catch(() => {});
 		server.close();

@@ -164,12 +164,15 @@ function createIngestor({ client, sign }) {
 	const subscribers = new Set();
 	let snapshot = null;
 
+	const metrics = { accepted: 0, shed: 0, rejected: 0, batchesDropped: 0, rowsDropped: 0, signatures: 0 };
+
 	function pump() {
 		if (shuttingDown || inFlight || pending.length === 0) return;
 		const payload = pending.shift();
 		inFlight = payload;
 		sign(payload).then((signature) => {
 			inFlight = null;
+			metrics.signatures++;
 			try {
 				batch.push(buildRow(payload, signature));
 				if (batch.length >= BATCH_MAX_ROWS) flush();
@@ -198,6 +201,8 @@ function createIngestor({ client, sign }) {
 				await client.insert({ table: 'readings', values: rows, format: 'JSONEachRow' });
 			} catch (second) {
 				// One retry then shed: a wedged writer must not block ingestion or grow memory.
+				metrics.batchesDropped++;
+				metrics.rowsDropped += rows.length;
 				console.error(`[ingestor] dropped batch of ${rows.length} rows after retry: ${second.message}`);
 			}
 		} finally {
@@ -271,13 +276,39 @@ function createIngestor({ client, sign }) {
 		res.json({ status: 'ok' });
 	});
 
+	app.get('/metrics', (req, res) => {
+		res.type('text/plain; version=0.0.4');
+		res.send([
+			'# TYPE readings_accepted_total counter',
+			`readings_accepted_total ${metrics.accepted}`,
+			'# TYPE readings_shed_total counter',
+			`readings_shed_total ${metrics.shed}`,
+			'# TYPE readings_rejected_total counter',
+			`readings_rejected_total ${metrics.rejected}`,
+			'# TYPE signatures_total counter',
+			`signatures_total ${metrics.signatures}`,
+			'# TYPE batches_dropped_total counter',
+			`batches_dropped_total ${metrics.batchesDropped}`,
+			'# TYPE rows_dropped_total counter',
+			`rows_dropped_total ${metrics.rowsDropped}`,
+			'# TYPE ingestor_queue_depth gauge',
+			`ingestor_queue_depth ${pending.length}`,
+			'# TYPE ingestor_batch_depth gauge',
+			`ingestor_batch_depth ${batch.length}`,
+			'# TYPE ingestor_sse_subscribers gauge',
+			`ingestor_sse_subscribers ${subscribers.size}`,
+			'',
+		].join('\n'));
+	});
+
 	app.post('/ingest', (req, res) => {
 		if (shuttingDown) return res.status(503).json({ status: 'shutting_down' });
 		const payload = validate(req.body);
-		if (!payload) return res.status(400).json({ status: 'invalid' });
-		if (pending.length >= PENDING_CAP) return res.status(503).json({ status: 'overloaded' });
+		if (!payload) { metrics.rejected++; return res.status(400).json({ status: 'invalid' }); }
+		if (pending.length >= PENDING_CAP) { metrics.shed++; return res.status(503).json({ status: 'overloaded' }); }
 		pending.push(payload);
 		pump();
+		metrics.accepted++;
 		res.status(202).json({ status: 'accepted' });
 	});
 

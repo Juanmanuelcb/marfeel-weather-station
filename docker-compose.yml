@@ -47,7 +47,6 @@ services:
     build:
       context: ./server/ingestor
       dockerfile: Dockerfile
-    container_name: sensor-ingestion
     restart: unless-stopped
     depends_on:
       clickhouse:
@@ -58,14 +57,17 @@ services:
       <<: *clickhouse-env
       CLICKHOUSE_URL: http://clickhouse:8123
       ALLOWED_ORIGIN: http://localhost:5173
-    # Production runs this in small, CPU-limited pods. Keep that in mind.
+    # Small, CPU-limited pods, run as several replicas behind the gateway so
+    # throughput scales past a single pod's ~47 signatures/sec.
     deploy:
+      replicas: 3
       resources:
         limits:
           cpus: "1.0"
           memory: "512M"
 
-  # Rolling-deploy agent: keeps the fleet services on the current build.
+  # Rolling-restart agent: cycles the ingestor replicas one at a time (10s drain,
+  # 5s gap) so there is no moment where the whole fleet is down.
   deployer:
     image: docker:cli
     restart: unless-stopped
@@ -73,7 +75,13 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - sensor-ingestion
-    command: sh -c "while true; do sleep 30; docker restart sensor-ingestion >/dev/null 2>&1 || true; done"
+    environment:
+      - PROJECT=${COMPOSE_PROJECT_NAME:-weather-station-take-home}
+    command: >
+      sh -c 'while true; do sleep 30;
+        for id in $$(docker ps -q --filter label=com.docker.compose.project=$$PROJECT --filter label=com.docker.compose.service=sensor-ingestion); do
+          docker restart -t 10 "$$id" >/dev/null 2>&1 || true; sleep 5;
+        done; done'
 
   gateway:
     build:
