@@ -1,47 +1,27 @@
 import { Link } from 'react-router';
-import styled from 'styled-components';
+import { useSnapshot } from '../../snapshot';
 
-const Aside = styled.aside`
-	width: 100%;
-	height: 100%;
-	display: flex;
-	flex-direction: column;
-	padding: 1rem;
-	background: #1f2937;
-	color: #fff;
-`;
-
-const Heading = styled.h2`
-	font-size: 1.125rem;
-	font-weight: 700;
-	margin-bottom: 1rem;
-`;
-
-const NavLink = styled(Link)`
-	display: block;
-	padding: 0.5rem 1rem;
-	color: inherit;
-	text-decoration: none;
-	&:hover {
-		background: #374151;
-	}
-`;
-
-export const Sidebar = () => {
-	const deviceIds: any = ['1234', '818181', '919191'];
+export function Sidebar() {
+	const { snapshot } = useSnapshot();
+	const devices = snapshot?.fleet ?? [];
 
 	return (
-		<Aside>
-			<Heading>Devices</Heading>
-			<nav style={{ flex: 1 }}>
+		<aside className="w-full h-full flex flex-col p-4 bg-gray-800 text-white">
+			<h2 className="text-lg font-bold mb-4">Devices ({devices.length})</h2>
+			<nav className="flex-1 overflow-y-auto">
 				<ul>
-					{deviceIds.map((deviceId) => (
-						<li key={deviceId}>
-							<NavLink to={`/device/${deviceId}`}>Device {deviceId}</NavLink>
+					{devices.map((d) => (
+						<li key={d.device_id}>
+							<Link
+								to={`/device/${d.device_id}`}
+								className="block px-4 py-2 font-mono text-sm hover:bg-gray-700"
+							>
+								{d.device_id}
+							</Link>
 						</li>
 					))}
 				</ul>
 			</nav>
-		</Aside>
+		</aside>
 	);
-};
+}

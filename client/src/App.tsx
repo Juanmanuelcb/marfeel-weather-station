@@ -1,23 +1,22 @@
 import { BrowserRouter, Routes, Route } from 'react-router';
 import { Home } from './pages/home';
-import { Debug } from './pages/debug';
+import { Device } from './pages/device';
 import { Main } from './layout';
+import { SnapshotProvider } from './snapshot';
 
 import './index.css';
 
-function App() {
+export function App() {
 	return (
-		<>
-			<BrowserRouter>
+		<BrowserRouter>
+			<SnapshotProvider>
 				<Routes>
 					<Route path="/" element={<Main />}>
 						<Route index element={<Home />} />
+						<Route path="device/:deviceId" element={<Device />} />
 					</Route>
-					<Route path="/debug/:deviceId" element={<Debug />} />
 				</Routes>
-			</BrowserRouter>
-		</>
+			</SnapshotProvider>
+		</BrowserRouter>
 	);
 }
-
-export default App;

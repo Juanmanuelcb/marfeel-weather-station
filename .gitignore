@@ -17,8 +17,9 @@ yarn-error.log*
 package-lock.json
 yarn.lock
 pnpm-lock.yaml
-# Commit the ingestor lockfile so the production image builds with npm ci.
+# Commit the service lockfiles so the production images build with npm ci.
 !server/ingestor/package-lock.json
+!client/package-lock.json
 
 # Jest test output
 coverage/
