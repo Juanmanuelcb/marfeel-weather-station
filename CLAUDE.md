@@ -15,9 +15,11 @@ build a real-time fleet console. It is graded on **decisions**, not code volume 
    `.notes/DECISIONS_LOG.md` as it happens — written incrementally, never
    reconstructed at the end. This is the raw material we distill into `DECISIONS.md`.
    Confirm with me before writing to it.
-3. **Never commit or push automatically.** Only on explicit request. When committing,
-   use a plain message body — **no `Co-Authored-By:` trailer, no Claude/robot
-   attribution.**
+3. **Never commit or push automatically.** Only on explicit request. Use
+   **Conventional Commits** for the subject line (`feat:`, `fix:`, `docs:`, `test:`,
+   `refactor:`, `chore:`, with an optional scope like `feat(ingestor):`). Keep the body
+   plain — **no `Co-Authored-By:` trailer, no Claude/robot attribution.** One logical
+   change per commit.
 4. **Confirm before writes that would ship.** Changes to pushed files (`DECISIONS.md`,
    `README.md`, source) are confirm-first. Internal notes (`.notes/`, `INSIGHTS.md`)
    I can update and report.
