@@ -9,19 +9,50 @@ import type { SparkPoint } from '../../components/sparkline';
 const POLL_MS = 3000;
 
 type Status = 'loading' | 'ready' | 'error';
+type ChartKey = 'temperature' | 'humidity' | 'anomaly';
+
+function ExpandIcon() {
+	return (
+		<svg
+			width="16"
+			height="16"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="2"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+			aria-hidden
+		>
+			<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+		</svg>
+	);
+}
 
 function ChartCard({
 	title,
 	color,
+	onExpand,
 	children,
 }: {
 	title: string;
 	color: string;
+	onExpand: () => void;
 	children: ReactNode;
 }) {
 	return (
-		<section className={`bg-white rounded shadow p-4 ${color}`}>
-			<h2 className="text-sm font-semibold mb-2 text-gray-700">{title}</h2>
+		<section className={`rounded-lg border border-slate-200 bg-white p-4 shadow-card ${color}`}>
+			<div className="mb-2 flex items-center justify-between">
+				<h2 className="text-xs font-medium uppercase tracking-wide text-slate-500">{title}</h2>
+				<button
+					type="button"
+					onClick={onExpand}
+					aria-label={`Expand ${title} chart`}
+					className="text-slate-400 hover:text-slate-600"
+				>
+					<ExpandIcon />
+				</button>
+			</div>
 			{children}
 		</section>
 	);
@@ -31,6 +62,7 @@ export function Device() {
 	const { deviceId } = useParams();
 	const [readings, setReadings] = useState<DeviceReading[]>([]);
 	const [status, setStatus] = useState<Status>('loading');
+	const [expanded, setExpanded] = useState<ChartKey | null>(null);
 
 	// Poll the history so the charts actually move; without this the page shows a
 	// frozen snapshot from when it mounted.
@@ -39,6 +71,7 @@ export function Device() {
 		let active = true;
 		setStatus('loading');
 		setReadings([]);
+		setExpanded(null);
 		const load = () =>
 			fetchDeviceHistory(deviceId)
 				.then(rows => {
@@ -67,33 +100,76 @@ export function Device() {
 	if (status === 'loading' && !readings.length) {
 		return (
 			<div className="space-y-6 animate-pulse">
-				<div className="h-6 w-40 bg-gray-200 rounded" />
+				<div className="h-6 w-40 rounded-lg bg-slate-200" />
 				<div className="grid gap-4 md:grid-cols-3">
-					<div className="h-40 bg-gray-200 rounded" />
-					<div className="h-40 bg-gray-200 rounded" />
-					<div className="h-40 bg-gray-200 rounded" />
+					<div className="h-44 rounded-lg bg-slate-200" />
+					<div className="h-44 rounded-lg bg-slate-200" />
+					<div className="h-44 rounded-lg bg-slate-200" />
 				</div>
-				<div className="h-48 bg-gray-200 rounded" />
+				<div className="h-48 rounded-lg bg-slate-200" />
 			</div>
 		);
 	}
 	if (status === 'error' && !readings.length) {
-		return <p className="text-red-600">Could not load {deviceId}.</p>;
+		return (
+			<div className="rounded-lg border border-red-200 bg-red-50 p-6 text-red-700">
+				Could not load {deviceId}.
+			</div>
+		);
 	}
-	if (!latest) return <p className="text-gray-500">No recent readings for {deviceId}.</p>;
+	if (!latest) {
+		return (
+			<div className="rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">
+				No recent readings for {deviceId}.
+			</div>
+		);
+	}
 
 	// A background poll can fail after the first load. Show that instead of a green
 	// "live" dot pulsing over data that has quietly stopped updating.
 	const live = status === 'ready';
 
+	const charts = [
+		{
+			key: 'temperature' as const,
+			title: 'Temperature',
+			color: 'text-accent-600',
+			unit: '°',
+			decimals: 1,
+			domain: undefined,
+			points: pointsOf(r => r.temperature),
+		},
+		{
+			key: 'humidity' as const,
+			title: 'Humidity',
+			color: 'text-sky-600',
+			unit: '%',
+			decimals: 1,
+			domain: undefined,
+			points: pointsOf(r => r.humidity),
+		},
+		{
+			key: 'anomaly' as const,
+			title: 'Anomaly',
+			color: 'text-anomaly',
+			unit: '',
+			decimals: 2,
+			domain: [0, 1] as [number, number],
+			points: pointsOf(r => r.anomaly_prob),
+		},
+	];
+	const active = charts.find(c => c.key === expanded);
+
 	return (
 		<div className="space-y-6">
 			<div>
-				<h1 className="text-xl font-bold font-mono break-all">{deviceId}</h1>
-				<p className="mt-1 text-sm text-gray-600 flex flex-wrap items-center gap-x-2 gap-y-1">
-					<span className="inline-flex items-center gap-1">
+				<h1 className="text-lg font-semibold font-mono tracking-tight text-slate-900 break-all">
+					{deviceId}
+				</h1>
+				<p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-500">
+					<span className="inline-flex items-center gap-1.5">
 						<span
-							className={`w-2 h-2 rounded-full ${live ? 'bg-green-500 animate-pulse' : 'bg-amber-500'}`}
+							className={`h-2 w-2 rounded-full ${live ? 'bg-live animate-pulse' : 'bg-stale'}`}
 						/>
 						{live ? 'live' : 'reconnecting'}
 					</span>
@@ -103,53 +179,85 @@ export function Device() {
 				</p>
 			</div>
 
-			<div className="grid gap-4 md:grid-cols-3">
-				<ChartCard title="Temperature" color="text-blue-600">
+			{active ? (
+				<section
+					className={`rounded-lg border border-slate-200 bg-white p-4 shadow-card ${active.color}`}
+				>
+					<div className="mb-2 flex items-center justify-between">
+						<h2 className="text-xs font-medium uppercase tracking-wide text-slate-500">
+							{active.title}
+						</h2>
+						<button
+							type="button"
+							onClick={() => setExpanded(null)}
+							className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+						>
+							Back to grid
+						</button>
+					</div>
 					<Sparkline
-						points={pointsOf(r => r.temperature)}
-						label="Temperature over time"
-						unit="°"
-						className="w-full"
+						points={active.points}
+						label={`${active.title} over time`}
+						unit={active.unit}
+						decimals={active.decimals}
+						domain={active.domain}
+						width={900}
+						height={320}
+						className="mx-auto w-full max-w-4xl"
 					/>
-				</ChartCard>
-				<ChartCard title="Humidity" color="text-teal-600">
-					<Sparkline
-						points={pointsOf(r => r.humidity)}
-						label="Humidity over time"
-						unit="%"
-						className="w-full"
-					/>
-				</ChartCard>
-				<ChartCard title="Anomaly" color="text-red-600">
-					<Sparkline
-						points={pointsOf(r => r.anomaly_prob)}
-						label="Anomaly over time"
-						decimals={2}
-						domain={[0, 1]}
-						className="w-full"
-					/>
-				</ChartCard>
-			</div>
+				</section>
+			) : (
+				<div className="grid gap-4 md:grid-cols-3">
+					{charts.map(c => (
+						<ChartCard
+							key={c.key}
+							title={c.title}
+							color={c.color}
+							onExpand={() => setExpanded(c.key)}
+						>
+							<Sparkline
+								points={c.points}
+								label={`${c.title} over time`}
+								unit={c.unit}
+								decimals={c.decimals}
+								domain={c.domain}
+								className="w-full"
+							/>
+						</ChartCard>
+					))}
+				</div>
+			)}
 
 			<section>
-				<h2 className="text-lg font-semibold mb-2">Recent readings</h2>
-				<div className="overflow-x-auto rounded shadow bg-white">
+				<h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+					Recent readings
+				</h2>
+				<div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-card">
 					<table className="w-full min-w-[480px] table-fixed text-sm">
 						<thead>
-							<tr className="text-left border-b">
-								<th className="p-2">Recorded</th>
-								<th className="p-2 w-24 text-right">Temp</th>
-								<th className="p-2 w-28 text-right">Humidity</th>
-								<th className="p-2 w-28 text-right">Anomaly</th>
+							<tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+								<th className="px-4 py-2.5 font-medium">Recorded</th>
+								<th className="px-4 py-2.5 font-medium w-24 text-right">Temp</th>
+								<th className="px-4 py-2.5 font-medium w-28 text-right">Humidity</th>
+								<th className="px-4 py-2.5 font-medium w-28 text-right">Anomaly</th>
 							</tr>
 						</thead>
 						<tbody>
 							{readings.slice(0, 20).map(r => (
-								<tr key={`${r.recorded_at}-${r.temperature}-${r.humidity}`} className="border-b">
-									<td className="p-2 tabular-nums">{r.recorded_at}</td>
-									<td className="p-2 text-right tabular-nums">{r.temperature.toFixed(1)}</td>
-									<td className="p-2 text-right tabular-nums">{r.humidity.toFixed(1)}</td>
-									<td className="p-2 text-right tabular-nums">{r.anomaly_prob.toFixed(2)}</td>
+								<tr
+									key={`${r.recorded_at}-${r.temperature}-${r.humidity}`}
+									className="border-b border-black/[0.06] hover:bg-slate-50 transition-colors"
+								>
+									<td className="px-4 py-2.5 tabular-nums text-slate-500">{r.recorded_at}</td>
+									<td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+										{r.temperature.toFixed(1)}
+									</td>
+									<td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+										{r.humidity.toFixed(1)}
+									</td>
+									<td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+										{r.anomaly_prob.toFixed(2)}
+									</td>
 								</tr>
 							))}
 						</tbody>

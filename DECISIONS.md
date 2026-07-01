@@ -157,6 +157,23 @@ Some UI details needed a second pass:
 - The console is built for production (a vite build served by nginx), not the dev
   server.
 
+### Look and feel
+
+The spike's styling was stock Tailwind and read like a prototype. I added a small
+design token layer (Tailwind v4 `@theme`): one indigo accent, a slate neutral ramp, and
+semantic status colors (live, stale, anomaly). Components use named tokens, not raw
+colors, so the palette stays consistent and a dark theme later is a values swap, not a
+rewrite. I stayed light-only for now.
+
+- Responsive to phone width: the sidebar collapses to an off-canvas drawer, and the
+  tables drop low-priority columns instead of scrolling a wall of numbers. Touch targets
+  are 44px.
+- I extended the hand-rolled SVG chart instead of pulling in a chart library: expand a
+  metric to a large view, and a hover crosshair reads the value and time at any point on
+  the line. Same call as before, no dependency for something I can draw.
+- Softer table dividers and row hover, so the fleet reads like an analytics console, not
+  a spreadsheet.
+
 ## Production hardening
 
 The architecture is decoupled, so it scales out. I wired that up, plus the usual
@@ -214,6 +231,8 @@ Knowing when not to build is part of the job. These are deliberate:
 - Real ClickHouse HA and a backup and retention policy (needs the schema unfrozen).
 - Prometheus and Grafana on `/metrics`, structured logs, and an alert on the shed rate.
 - The integration test above, and a client-side zod schema for the API responses.
+- A dark theme. The token layer is already in place, so it is a values swap plus a
+  toggle, not a refactor.
 - Kubernetes manifests with autoscaling on the ingestor keyed off queue depth, and a
   real load balancer instead of the single nginx.
 
@@ -242,7 +261,8 @@ I used AI agents a lot, but the judgment stayed mine.
 - **Delegated:** reading the spike on three fronts at once, benchmarking the signature,
   and many adversarial reviews (one per phase), plus focused investigations (the
   TypeScript question, the production-readiness gaps, an acceptance check against the
-  README).
+  README), plus a design audit and web research on modern dashboard patterns, then an
+  adversarial triage that cut the suggestions over-built for a take-home.
 - **Kept as my call:** the architecture, the numbers and how to frame them, and what to
   build versus skip.
 - **Where it helped:** the reviews caught real bugs my own tests missed. The dedup-key

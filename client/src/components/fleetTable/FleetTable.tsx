@@ -26,17 +26,19 @@ export const FleetTable = memo(function FleetTable({ rows, nowMs }: Props) {
 		<div
 			ref={containerRef}
 			onScroll={onScroll}
-			className="max-h-[70vh] overflow-auto rounded shadow bg-white"
+			className="max-h-[70vh] overflow-auto rounded-lg border border-slate-200 bg-white shadow-card"
 		>
 			<table className="w-full table-fixed text-sm">
 				<thead className="sticky top-0 z-10 bg-white">
-					<tr className="text-left border-b">
-						<th className="p-2 w-28 sm:w-44">Device</th>
-						<th className="p-2 w-40 hidden sm:table-cell">Location</th>
-						<th className="p-2 w-16 sm:w-20 text-right">Temp</th>
-						<th className="p-2 w-24 text-right hidden sm:table-cell">Humidity</th>
-						<th className="p-2 w-20 sm:w-24 text-right">Anomaly</th>
-						<th className="p-2">Last seen</th>
+					<tr className="text-left border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+						<th className="px-4 py-2.5 font-medium w-28 sm:w-44">Device</th>
+						<th className="px-4 py-2.5 font-medium w-40 hidden sm:table-cell">Location</th>
+						<th className="px-4 py-2.5 font-medium w-16 sm:w-20 text-right">Temp</th>
+						<th className="px-4 py-2.5 font-medium w-24 text-right hidden sm:table-cell">
+							Humidity
+						</th>
+						<th className="px-4 py-2.5 font-medium w-20 sm:w-24 text-right">Anomaly</th>
+						<th className="px-4 py-2.5 font-medium">Last seen</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -49,29 +51,40 @@ export const FleetTable = memo(function FleetTable({ rows, nowMs }: Props) {
 						const stale = isStale(r.recorded_at, nowMs, STALE_MS);
 						const anomalous = r.anomaly_prob > ANOMALY_FLAG;
 						return (
-							<tr key={r.device_id} ref={i === 0 ? measureRow : undefined} className="border-b">
-								<td className="p-3 sm:p-2 font-mono truncate">
-									<Link to={`/device/${r.device_id}`} className="text-blue-700 hover:underline">
+							<tr
+								key={r.device_id}
+								ref={i === 0 ? measureRow : undefined}
+								className="border-b border-black/[0.06] hover:bg-slate-50 transition-colors"
+							>
+								<td className="px-4 py-3 sm:py-2.5 font-mono truncate">
+									<Link
+										to={`/device/${r.device_id}`}
+										className="text-accent-600 hover:text-accent-700 font-medium"
+									>
 										{r.device_id}
 									</Link>
 								</td>
-								<td className="p-3 sm:p-2 truncate hidden sm:table-cell">
+								<td className="px-4 py-3 sm:py-2.5 truncate hidden sm:table-cell text-slate-600">
 									{r.location_name || r.location}
 								</td>
-								<td className="p-3 sm:p-2 text-right">
+								<td className="px-4 py-3 sm:py-2.5 text-right text-slate-700">
 									<FlashCell value={r.temperature} decimals={1} />
 								</td>
-								<td className="p-3 sm:p-2 text-right hidden sm:table-cell">
+								<td className="px-4 py-3 sm:py-2.5 text-right hidden sm:table-cell text-slate-700">
 									<FlashCell value={r.humidity} decimals={1} />
 								</td>
 								<td
-									className={`p-3 sm:p-2 text-right tabular-nums ${anomalous ? 'text-red-600 font-semibold' : ''}`}
+									className={`px-4 py-3 sm:py-2.5 text-right tabular-nums ${anomalous ? 'text-anomaly font-semibold' : 'text-slate-600'}`}
 								>
 									{`${r.anomaly_prob.toFixed(2)}${anomalous ? ' !' : ''}`}
 								</td>
-								<td className="p-3 sm:p-2 tabular-nums whitespace-nowrap">
+								<td className="px-4 py-3 sm:py-2.5 tabular-nums whitespace-nowrap text-slate-500">
 									{r.recorded_at}
-									{stale ? <span className="ml-2 text-xs text-amber-600">stale</span> : null}
+									{stale ? (
+										<span className="ml-2 rounded bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700">
+											stale
+										</span>
+									) : null}
 								</td>
 							</tr>
 						);

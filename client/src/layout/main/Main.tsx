@@ -40,7 +40,7 @@ export function Main() {
 
 			<div className="flex flex-1 flex-col min-h-0 min-w-0">
 				<TopBar navOpen={navOpen} onMenuClick={() => setNavOpen(true)} />
-				<main className="flex-1 p-6 overflow-auto bg-gray-100">
+				<main className="flex-1 p-6 overflow-auto bg-slate-50">
 					<Outlet />
 				</main>
 			</div>

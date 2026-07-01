@@ -19,17 +19,21 @@ export const LocationSummary = memo(function LocationSummary({ locations }: Prop
 		<div
 			ref={containerRef}
 			onScroll={onScroll}
-			className="max-h-[50vh] overflow-auto rounded shadow bg-white"
+			className="max-h-[50vh] overflow-auto rounded-lg border border-slate-200 bg-white shadow-card"
 		>
 			<table className="w-full table-fixed text-sm">
 				<thead className="sticky top-0 z-10 bg-white">
-					<tr className="text-left border-b">
-						<th className="p-2">Location</th>
-						<th className="p-2 w-24 text-right">Devices</th>
-						<th className="p-2 w-24 text-right">Avg temp</th>
-						<th className="p-2 w-28 text-right hidden sm:table-cell">Avg humidity</th>
-						<th className="p-2 w-28 text-right hidden sm:table-cell">Avg anomaly</th>
-						<th className="p-2 w-28 text-right">Anomalous</th>
+					<tr className="text-left border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+						<th className="px-4 py-2.5 font-medium">Location</th>
+						<th className="px-4 py-2.5 font-medium w-24 text-right">Devices</th>
+						<th className="px-4 py-2.5 font-medium w-24 text-right">Avg temp</th>
+						<th className="px-4 py-2.5 font-medium w-28 text-right hidden sm:table-cell">
+							Avg humidity
+						</th>
+						<th className="px-4 py-2.5 font-medium w-28 text-right hidden sm:table-cell">
+							Avg anomaly
+						</th>
+						<th className="px-4 py-2.5 font-medium w-28 text-right">Anomalous</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -39,22 +43,28 @@ export const LocationSummary = memo(function LocationSummary({ locations }: Prop
 						</tr>
 					)}
 					{visible.map((l, i) => (
-						<tr key={l.location} ref={i === 0 ? measureRow : undefined} className="border-b">
-							<td className="p-3 sm:p-2 truncate">{l.location_name || l.location}</td>
-							<td className="p-3 sm:p-2 text-right">
+						<tr
+							key={l.location}
+							ref={i === 0 ? measureRow : undefined}
+							className="border-b border-black/[0.06] hover:bg-slate-50 transition-colors"
+						>
+							<td className="px-4 py-3 sm:py-2.5 truncate font-medium text-slate-800">
+								{l.location_name || l.location}
+							</td>
+							<td className="px-4 py-3 sm:py-2.5 text-right text-slate-600">
 								<FlashCell value={l.devices} decimals={0} />
 							</td>
-							<td className="p-3 sm:p-2 text-right">
+							<td className="px-4 py-3 sm:py-2.5 text-right text-slate-700">
 								<FlashCell value={l.avg_temperature} decimals={1} />
 							</td>
-							<td className="p-3 sm:p-2 text-right hidden sm:table-cell">
+							<td className="px-4 py-3 sm:py-2.5 text-right hidden sm:table-cell text-slate-600">
 								<FlashCell value={l.avg_humidity} decimals={1} />
 							</td>
-							<td className="p-3 sm:p-2 text-right hidden sm:table-cell">
+							<td className="px-4 py-3 sm:py-2.5 text-right hidden sm:table-cell text-slate-600">
 								<FlashCell value={l.avg_anomaly} decimals={2} />
 							</td>
 							<td
-								className={`p-3 sm:p-2 text-right ${l.anomalous_devices > 0 ? 'text-red-600 font-semibold' : ''}`}
+								className={`px-4 py-3 sm:py-2.5 text-right ${l.anomalous_devices > 0 ? 'text-anomaly font-semibold' : 'text-slate-600'}`}
 							>
 								<FlashCell value={l.anomalous_devices} decimals={0} />
 							</td>
