@@ -4,6 +4,7 @@ const { Worker } = require('worker_threads');
 const { createClient } = require('@clickhouse/client');
 
 const PORT = process.env.PORT || 3030;
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'http://localhost:5173';
 
 // Small on purpose. The signer sustains far fewer signatures/sec than the fleet
 // offers on 1 CPU, so a large cap would ack readings and then drop them at the
@@ -281,7 +282,7 @@ function createIngestor({ client, sign }) {
 	});
 
 	async function readJson(res, sql, query_params) {
-		res.header('Access-Control-Allow-Origin', '*');
+		res.header('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
 		try {
 			res.json(await query(sql, query_params));
 		} catch (err) {
@@ -296,7 +297,7 @@ function createIngestor({ client, sign }) {
 			'Content-Type': 'text/event-stream',
 			'Cache-Control': 'no-cache',
 			'Connection': 'keep-alive',
-			'Access-Control-Allow-Origin': '*',
+			'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
 		});
 		subscribers.add(res);
 		// New subscribers get the current snapshot now, not after a full poll.

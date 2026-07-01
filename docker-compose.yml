@@ -4,17 +4,20 @@ x-clickhouse-env: &clickhouse-env
 
 services:
   clickhouse:
-    image: clickhouse/clickhouse-server:latest
+    image: clickhouse/clickhouse-server:24.8
     ports:
       - "8123:8123"
       - "9000:9000"
     volumes:
+      - clickhouse_data:/var/lib/clickhouse
       - ./server/clickhouse/init:/docker-entrypoint-initdb.d
     environment: *clickhouse-env
     networks:
       - app_network
+    # clickhouse-client, not wget: it ships in the image and authenticates
+    # reliably, whereas wget returns 403 against ClickHouse's auth challenge.
     healthcheck:
-      test: ["CMD", "wget", "--spider", "http://${CLICKHOUSE_USER}:${CLICKHOUSE_PASSWORD}@localhost:8123/?query=SELECT%20version()"]
+      test: ["CMD", "clickhouse-client", "--user", "${CLICKHOUSE_USER}", "--password", "${CLICKHOUSE_PASSWORD}", "--query", "SELECT 1"]
       interval: 10s
       retries: 5
       start_period: 10s
@@ -34,6 +37,11 @@ services:
       - app_network
     depends_on:
       - gateway
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "512M"
 
   sensor-ingestion:
     build:
@@ -49,6 +57,7 @@ services:
     environment:
       <<: *clickhouse-env
       CLICKHOUSE_URL: http://clickhouse:8123
+      ALLOWED_ORIGIN: http://localhost:5173
     # Production runs this in small, CPU-limited pods. Keep that in mind.
     deploy:
       resources:
@@ -77,6 +86,11 @@ services:
         condition: service_healthy
     networks:
       - app_network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: "128M"
 
   react-app:
     build:
@@ -88,7 +102,15 @@ services:
       - gateway
     networks:
       - app_network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: "128M"
 
 networks:
   app_network:
     driver: bridge
+
+volumes:
+  clickhouse_data:

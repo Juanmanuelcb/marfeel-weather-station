@@ -63,6 +63,9 @@ Thumbs.db
 *.bak
 *.swp
 
+# Local secrets: keep out of git. Commit .env.example instead.
+.env
+
 # Private working notes & internal analysis (never ship these)
 .notes/
 INSIGHTS.md
