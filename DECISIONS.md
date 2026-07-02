@@ -142,11 +142,21 @@ Some UI details needed a second pass:
 
 - The live tables flickered because every value rewrote at once and the columns shifted
   width. A fixed layout, monospace numbers, and a short flash on changed cells fixed it.
-- The device charts are hand-rolled SVG, no chart library. Small multiples for
-  temperature, humidity, and anomaly. The line uses a monotone-cubic spline, which
-  smooths without overshooting, so it never invents a peak or pushes the anomaly above
-  1. The Y range is padded and rounded so it does not jump on every update, the X axis
-  is time, and the latest-point marker glides to its new value.
+- The device page graphs the three signals worth watching over time: temperature,
+  humidity, and the anomaly score. The other metrics show as current-value cards, not
+  charts. Four of them (heat index, wind chill, dew point, air density) are derived from
+  temperature, humidity, and pressure, so their trends just echo the lines already on
+  screen; pressure and wind speed are raw, but a running chart of either adds little next
+  to the current number. Graphing all nine would be a wall of near-identical sparklines
+  that buries the one that matters. The full per-reading history stays in the
+  recent-readings table, one column per metric.
+- The charts are hand-rolled SVG, no chart library. The line uses a monotone-cubic
+  spline, which smooths without overshooting, so it never invents a peak or pushes the
+  anomaly above 1. The Y range is padded and rounded so it does not jump on every update,
+  the X axis is time, and the latest-point marker glides to its new value.
+- Anomaly gets the same red/yellow/green marker wherever it appears in a table (fleet,
+  device readings, and the per-location average), pinned to the server's 0.5 threshold,
+  so one glance means the same thing everywhere.
 - Virtualization. The fleet table and the sidebar render one row per device, so they
   grow with the fleet. I virtualize them, and the location table, with a small shared
   hook: only the rows in view are in the DOM. A test renders 1000 devices and checks
@@ -250,9 +260,9 @@ Knowing when not to build is part of the job. These are deliberate:
 
 The repo's AGENTS.md says not to run the linter or the tests. I read that as a trap
 and tested anyway. The ingestor has 15 tests covering the queue, the backpressure, the
-graceful flush, the SSE stream, and the validation bounds. The client has 15 covering
-the four states, the charts, the virtualization (1000 rows render under 100), and the
-helper math. Lint is clean and the build passes.
+graceful flush, the SSE stream, and the validation bounds. The client has 19 covering
+the four states, the charts, the virtualization (1000 rows render under 100), the
+anomaly marker, and the helper math. Lint is clean and the build passes.
 
 ## Using AI
 
