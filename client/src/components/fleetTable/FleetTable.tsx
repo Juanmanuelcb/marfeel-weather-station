@@ -3,10 +3,10 @@ import { Link } from 'react-router';
 import type { FleetReading } from '../../api';
 import { isStale } from '../../lib/staleness';
 import { useVirtualWindow } from '../../lib/useVirtualWindow';
+import { AnomalyValue } from '../anomalyValue';
 import { FlashCell } from '../flashCell';
 
 const STALE_MS = 15000;
-const ANOMALY_FLAG = 0.5;
 
 type Props = {
 	rows: FleetReading[];
@@ -38,7 +38,7 @@ export const FleetTable = memo(function FleetTable({ rows, nowMs }: Props) {
 							Humidity
 						</th>
 						<th className="px-4 py-2.5 font-medium w-20 sm:w-24 text-right">Anomaly</th>
-						<th className="px-4 py-2.5 font-medium">Last seen</th>
+						<th className="px-4 py-2.5 font-medium">Recorded</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -49,7 +49,6 @@ export const FleetTable = memo(function FleetTable({ rows, nowMs }: Props) {
 					)}
 					{visible.map((r, i) => {
 						const stale = isStale(r.recorded_at, nowMs, STALE_MS);
-						const anomalous = r.anomaly_prob > ANOMALY_FLAG;
 						return (
 							<tr
 								key={r.device_id}
@@ -73,10 +72,8 @@ export const FleetTable = memo(function FleetTable({ rows, nowMs }: Props) {
 								<td className="px-4 py-3 sm:py-2.5 text-right hidden sm:table-cell text-slate-700">
 									<FlashCell value={r.humidity} decimals={1} />
 								</td>
-								<td
-									className={`px-4 py-3 sm:py-2.5 text-right tabular-nums ${anomalous ? 'text-anomaly font-semibold' : 'text-slate-600'}`}
-								>
-									{`${r.anomaly_prob.toFixed(2)}${anomalous ? ' !' : ''}`}
+								<td className="px-4 py-3 sm:py-2.5 text-right text-slate-700">
+									<AnomalyValue prob={r.anomaly_prob} />
 								</td>
 								<td className="px-4 py-3 sm:py-2.5 tabular-nums whitespace-nowrap text-slate-500">
 									{r.recorded_at}

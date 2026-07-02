@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import type { LocationRollup } from '../../api';
 import { useVirtualWindow } from '../../lib/useVirtualWindow';
+import { AnomalyValue } from '../anomalyValue';
 import { FlashCell } from '../flashCell';
 
 type Props = {
@@ -61,7 +62,7 @@ export const LocationSummary = memo(function LocationSummary({ locations }: Prop
 								<FlashCell value={l.avg_humidity} decimals={1} />
 							</td>
 							<td className="px-4 py-3 sm:py-2.5 text-right hidden sm:table-cell text-slate-600">
-								<FlashCell value={l.avg_anomaly} decimals={2} />
+								<AnomalyValue prob={l.avg_anomaly} />
 							</td>
 							<td
 								className={`px-4 py-3 sm:py-2.5 text-right ${l.anomalous_devices > 0 ? 'text-anomaly font-semibold' : 'text-slate-600'}`}

@@ -46,7 +46,14 @@ describe('FleetTable', () => {
 
 	it('flags an anomalous device', () => {
 		renderTable([reading({ anomaly_prob: 0.9 })], now);
-		expect(screen.getByText('0.90 !')).toBeInTheDocument();
+		expect(screen.getByText('0.90')).toBeInTheDocument();
+		expect(screen.getByText('anomalous')).toBeInTheDocument();
+	});
+
+	it('marks a normal device as normal, not anomalous', () => {
+		renderTable([reading({ anomaly_prob: 0.1 })], now);
+		expect(screen.getByText('normal')).toBeInTheDocument();
+		expect(screen.queryByText('anomalous')).not.toBeInTheDocument();
 	});
 
 	it('marks a quiet device stale', () => {
