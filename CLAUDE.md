@@ -34,7 +34,8 @@ build a real-time fleet console. It is graded on **decisions**, not code volume 
 - `DECISIONS.md` (committed, written at the end) — distilled from the log: what
   changed and why, trade-offs, what I'd do with more time, and a short AI-usage
   section (what I delegated, what I kept, where it helped, where it fell short).
-- The repo ships source + `README.md` + `DECISIONS.md`. Nothing else.
+- The repo ships source + `README.md` + `INSTRUCTIONS.md` (the original brief) +
+  `DECISIONS.md`. Nothing else.
 
 ## Agent-fanout workflow
 

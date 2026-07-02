@@ -19,22 +19,6 @@ punish that:
 
 Every server decision has to survive those five things at once.
 
-## How to run it
-
-`docker compose up` starts everything. Open http://localhost:5173 for the console.
-Raise the load with `DEVICE_COUNT=50 docker compose up`.
-
-One setup step. I removed the committed `.env` because it had the database
-credentials in git. Copy the example first and set any values (they are only used
-locally):
-
-```
-cp .env.example .env
-```
-
-I did not touch the original README, since that is your evaluation guide, so I put
-this note here instead.
-
 ## The one number that shaped the server
 
 Each reading gets an integrity signature: 50,000 rounds of SHA-256. That is
@@ -271,7 +255,7 @@ I used AI agents a lot, but the judgment stayed mine.
 - **Delegated:** reading the spike on three fronts at once, benchmarking the signature,
   and many adversarial reviews (one per phase), plus focused investigations (the
   TypeScript question, the production-readiness gaps, an acceptance check against the
-  README), plus a design audit and web research on modern dashboard patterns, then an
+  brief), plus a design audit and web research on modern dashboard patterns, then an
   adversarial triage that cut the suggestions over-built for a take-home.
 - **Kept as my call:** the architecture, the numbers and how to frame them, and what to
   build versus skip.
